@@ -1,0 +1,204 @@
+// Общая часть: роль по адресу, устройство, запросы к базе, демо-режим, мелкие помощники.
+(function () {
+  var C = window.KADRAS, q = new URLSearchParams(location.search);
+  var K = window.K = { q: q };
+  K.event = (q.get('e') || 'kufa').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 24) || 'kufa';
+  K.role = q.has('pultas') ? 'host' : q.has('ekranas') ? 'screen' : 'guest';
+  K.demo = q.has('demo') || !C.key;
+
+  K.uuid = function () {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    var b = new Uint8Array(16);
+    (window.crypto || window.msCrypto).getRandomValues(b);
+    b[6] = b[6] & 15 | 64; b[8] = b[8] & 63 | 128;
+    var h = Array.prototype.map.call(b, function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
+    return h.slice(0, 8) + '-' + h.slice(8, 12) + '-' + h.slice(12, 16) + '-' + h.slice(16, 20) + '-' + h.slice(20);
+  };
+  var mem = {};
+  K.store = {
+    get: function (k) { try { var v = localStorage.getItem(k); return v === null ? (k in mem ? mem[k] : null) : v; } catch (e) { return k in mem ? mem[k] : null; } },
+    set: function (k, v) { mem[k] = v; try { localStorage.setItem(k, v); } catch (e) {} }
+  };
+  // ?d=2 — «второй телефон» в том же браузере (нужно только для проверки на одном компьютере).
+  var sfx = K.demo && q.get('d') ? '_' + q.get('d').replace(/\W/g, '') : '';
+  K.sfx = sfx;
+  K.device = K.store.get('kadras_device' + sfx);
+  if (!K.device) { K.device = K.uuid(); K.store.set('kadras_device' + sfx, K.device); }
+
+  // Маленький конструктор элементов: h('div', {class:'x', onclick:fn}, 'текст', узел…)
+  K.h = function (tag, attrs) {
+    var el = document.createElement(tag), i, k;
+    for (k in (attrs || {})) {
+      var v = attrs[k];
+      if (v === null || v === undefined || v === false) continue;
+      if (k.slice(0, 2) === 'on') el.addEventListener(k.slice(2), v);
+      else if (k === 'class') el.className = v;
+      else if (k === 'style') el.style.cssText = v;
+      else if (k === 'value') el.value = v;
+      else el.setAttribute(k, v === true ? '' : v);
+    }
+    for (i = 2; i < arguments.length; i++) {
+      var c = arguments[i];
+      if (c === null || c === undefined || c === false) continue;
+      if (Array.isArray(c)) c.forEach(function (x) { if (x) el.appendChild(typeof x === 'string' ? document.createTextNode(x) : x); });
+      else el.appendChild(typeof c === 'object' ? c : document.createTextNode(String(c)));
+    }
+    return el;
+  };
+  K.mount = function (node) {
+    var app = document.getElementById('app');
+    app.textContent = '';
+    if (K.demo) app.appendChild(K.h('div', { class: 'badge' }, 'DEMO'));
+    app.appendChild(node);
+  };
+  K.thumb = function (path) { return String(path).replace(/\.jpg$/, '_s.jpg'); };
+  K.guestUrl = function () {
+    var p = [];
+    if (K.event !== 'kufa') p.push('e=' + K.event);
+    if (q.has('demo')) p.push('demo');
+    return location.origin + location.pathname + (p.length ? '?' + p.join('&') : '');
+  };
+  // Опрос состояния: раз в ms, на паузе, пока вкладка скрыта.
+  K.poll = function (fn, ms) {
+    var busy = false;
+    function tick() {
+      if (busy || document.hidden) return;
+      busy = true;
+      Promise.resolve().then(fn).catch(function () {}).then(function () { busy = false; });
+    }
+    tick();
+    setInterval(tick, ms);
+    document.addEventListener('visibilitychange', tick);
+    window.addEventListener('storage', tick);
+    return tick;
+  };
+  // Уменьшение фото в браузере: длинная сторона до max, JPEG.
+  K.shrink = function (file, max, quality) {
+    return new Promise(function (res, rej) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        var w = img.naturalWidth, h = img.naturalHeight, s = Math.min(1, max / Math.max(w, h));
+        var c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(w * s)); c.height = Math.max(1, Math.round(h * s));
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        c.toBlob(function (b) { b ? res(b) : rej(new Error('blob')); }, 'image/jpeg', quality);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); rej(new Error('image')); };
+      img.src = url;
+    });
+  };
+
+  // ---------- настоящая база ----------
+  function head(extra) {
+    var o = { apikey: C.key, Authorization: 'Bearer ' + C.key };
+    for (var k in (extra || {})) o[k] = extra[k];
+    return o;
+  }
+  function rpc(fn, body) {
+    return fetch(C.url + '/rest/v1/rpc/' + fn, { method: 'POST', headers: head({ 'Content-Type': 'application/json' }), body: JSON.stringify(body) })
+      .then(function (r) { if (!r.ok) throw new Error('http ' + r.status); return r.json(); });
+  }
+  var real = {
+    state: function (dev) { return rpc('kadras_state', { p_event: K.event, p_device: dev || '' }); },
+    addPhoto: function (author, phone, path) { return rpc('kadras_add_photo', { p_event: K.event, p_device: K.device, p_author: author, p_phone: phone, p_path: path }); },
+    vote: function (id) { return rpc('kadras_vote', { p_event: K.event, p_device: K.device, p_photo: id }); },
+    host: function (pin, action, arg) { return rpc('kadras_host', { p_event: K.event, p_pin: pin, p_action: action, p_arg: arg || {} }); },
+    upload: function (path, blob) {
+      return fetch(C.url + '/storage/v1/object/' + C.bucket + '/' + path, { method: 'POST', headers: head({ 'Content-Type': 'image/jpeg' }), body: blob })
+        .then(function (r) { if (!r.ok) throw new Error('upload ' + r.status); });
+    },
+    url: function (path) { return C.url + '/storage/v1/object/public/' + C.bucket + '/' + path; },
+    remove: function (paths) {
+      var jobs = [];
+      for (var i = 0; i < paths.length; i += 100) {
+        jobs.push(fetch(C.url + '/storage/v1/object/' + C.bucket, { method: 'DELETE', headers: head({ 'Content-Type': 'application/json' }), body: JSON.stringify({ prefixes: paths.slice(i, i + 100) }) })
+          .then(function (r) { if (!r.ok) throw new Error('delete ' + r.status); }));
+      }
+      return Promise.all(jobs);
+    }
+  };
+
+  // ---------- демо: та же логика, данные в этом браузере ----------
+  var DK = 'kadras_demo_' + K.event;
+  function load() {
+    var d = null;
+    try { d = JSON.parse(K.store.get(DK)); } catch (e) {}
+    return d || { event: { id: K.event, title: 'Demo', phase: 'collect', round: 1, task: 'Bandomasis kadras: nufotografuokite bet ką šalia savęs' }, pin: null, photos: [], votes: [], files: {} };
+  }
+  function save(d) { K.store.set(DK, JSON.stringify(d)); }
+  function count(d, id) { return d.votes.filter(function (v) { return v.photo === id; }).length; }
+  var demo = {
+    state: function (dev) {
+      var d = load(), e = d.event, names = e.phase === 'reveal', votes = e.phase === 'results' || names, mine = null, my = null;
+      var photos = d.photos.filter(function (p) { return p.round === e.round && !p.hidden; }).sort(function (a, b) { return a.num - b.num; }).map(function (p) {
+        return { id: p.id, num: p.num, path: p.path, mine: p.device === dev, author: names ? p.author : null, phone: names ? p.phone : null, votes: votes ? count(d, p.id) : null };
+      });
+      d.photos.forEach(function (p) { if (p.round === e.round && p.device === dev) mine = { id: p.id, num: p.num, path: p.path }; });
+      d.votes.forEach(function (v) { if (v.round === e.round && v.device === dev) my = v.photo; });
+      return Promise.resolve({ event: e, photos: photos, my_photo: mine, my_vote: my, voters: d.votes.filter(function (v) { return v.round === e.round; }).length });
+    },
+    addPhoto: function (author, phone, path) {
+      var d = load(), e = d.event;
+      author = String(author || '').trim().slice(0, 40);
+      if (!author) return Promise.resolve({ error: 'no_name' });
+      if (e.phase !== 'collect') return Promise.resolve({ error: 'closed' });
+      var cur = d.photos.filter(function (p) { return p.round === e.round && p.device === K.device; })[0];
+      if (cur) { delete d.files[K.thumb(cur.path)]; cur.path = path; cur.author = author; cur.phone = phone; }
+      else {
+        var n = d.photos.filter(function (p) { return p.round === e.round; }).reduce(function (m, p) { return Math.max(m, p.num); }, 0) + 1;
+        cur = { id: K.uuid(), num: n, round: e.round, device: K.device, author: author, phone: String(phone || '').slice(0, 40), path: path, hidden: false };
+        d.photos.push(cur);
+      }
+      save(d);
+      return Promise.resolve({ ok: true, id: cur.id, num: cur.num });
+    },
+    vote: function (id) {
+      var d = load(), e = d.event;
+      if (e.phase !== 'vote') return Promise.resolve({ error: 'closed' });
+      var ph = d.photos.filter(function (p) { return p.id === id && p.round === e.round && !p.hidden; })[0];
+      if (!ph) return Promise.resolve({ error: 'no_photo' });
+      if (ph.device === K.device) return Promise.resolve({ error: 'own' });
+      d.votes = d.votes.filter(function (v) { return !(v.round === e.round && v.device === K.device); });
+      d.votes.push({ round: e.round, device: K.device, photo: id });
+      save(d);
+      return Promise.resolve({ ok: true, num: ph.num });
+    },
+    host: function (pin, action, arg) {
+      var d = load(), e = d.event; arg = arg || {};
+      if (!pin || pin.length < 4) return Promise.resolve({ error: 'bad_pin', need_pin: !d.pin });
+      if (!d.pin) { if (action !== 'set_pin') return Promise.resolve({ error: 'no_pin_yet', need_pin: true }); d.pin = pin; }
+      else if (d.pin !== pin) return Promise.resolve({ error: 'wrong_pin' });
+      if (action === 'phase') e.phase = arg.phase;
+      else if (action === 'round') { e.round += 1; e.phase = 'collect'; e.task = String(arg.task || '').slice(0, 200); }
+      else if (action === 'goto') { e.round = Math.max(1, Math.min(50, parseInt(arg.round, 10) || 1)); e.phase = 'wait'; }
+      else if (action === 'task') e.task = String(arg.task || '').slice(0, 200);
+      else if (action === 'title') e.title = String(arg.title || '').slice(0, 120);
+      else if (action === 'hide') d.photos.forEach(function (p) { if (p.id === arg.id) p.hidden = arg.hidden !== false; });
+      else if (action === 'purge_begin') e.phase = 'purge';
+      else if (action === 'purge_end') { d.photos = []; d.votes = []; d.files = {}; e.phase = 'wait'; e.round = 1; e.task = ''; }
+      save(d);
+      return Promise.resolve({
+        ok: true, event: e, total: d.photos.length,
+        voters: d.votes.filter(function (v) { return v.round === e.round; }).length,
+        paths: e.phase === 'purge' ? Object.keys(d.files) : null,
+        photos: d.photos.filter(function (p) { return p.round === e.round; }).sort(function (a, b) { return a.num - b.num; }).map(function (p) {
+          return { id: p.id, num: p.num, path: p.path, author: p.author, phone: p.phone, hidden: p.hidden, votes: count(d, p.id) };
+        })
+      });
+    },
+    upload: function (path, blob) {
+      if (!/_s\.jpg$/.test(path)) return Promise.resolve(); // в демо храним только маленькую копию
+      return new Promise(function (res, rej) {
+        var r = new FileReader();
+        r.onload = function () { var d = load(); d.files[path] = r.result; save(d); res(); };
+        r.onerror = rej;
+        r.readAsDataURL(blob);
+      });
+    },
+    url: function (path) { return load().files[K.thumb(path.replace(/_s\.jpg$/, '.jpg'))] || ''; },
+    remove: function () { return Promise.resolve(); }
+  };
+
+  K.api = K.demo ? demo : real;
+})();
