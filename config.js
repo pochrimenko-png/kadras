@@ -4,6 +4,6 @@
 // Пока ключ пустой, страница работает в демо-режиме (данные только в этом браузере).
 window.KADRAS = {
   url: 'https://niaukqozosjdmudmasxk.supabase.co',
-  key: '',
+  key: 'sb_publishable_DcARdXeEFuz7jo5-8KYa_w_wqHTQpC9',
   bucket: 'kadras'
 };
