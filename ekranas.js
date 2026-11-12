@@ -2,7 +2,7 @@
 (function () {
   var K = window.K, h = K.h, api = K.api;
   if (K.role !== 'screen') return;
-  var S = { st: null, key: '', poll: null };
+  var S = { st: null, key: '', poll: null }, SEEN = {}, FIRST = false;
 
   function qr(text) {
     var el = h('div', { class: 'qr' });
@@ -74,7 +74,8 @@
         var cap = null;
         if (ph === 'reveal') cap = h('div', { class: 'cap' }, h('span', null, (p.author || '') + (p.phone ? ' · ' + p.phone : '')), h('b', null, String(p.votes || 0)));
         else if (ph === 'results') cap = h('div', { class: 'cap' }, h('span', null, balsai(p.votes || 0)), h('b', null, String(p.votes || 0)));
-        return h('div', { class: 'tile' + (winners.indexOf(p) >= 0 ? ' win' : '') },
+        var fresh = !SEEN[p.id]; SEEN[p.id] = 1;
+        return h('div', { class: 'tile' + (winners.indexOf(p) >= 0 ? ' win' : '') + (fresh && FIRST ? ' pop' : '') },
           h('img', { src: api.url(small ? K.thumb(p.path) : p.path), alt: '' }), h('span', { class: 'n' }, String(p.num)), cap,
           ph === 'results' && max > 0 && h('i', { class: 'vb', style: 'width:' + Math.round(100 * (p.votes || 0) / max) + '%' }));
       }));
@@ -86,6 +87,7 @@
         h('div', { class: 'cnt', id: 'cnt' }, cnt)),
       h('div', { class: 'body' }, body)));
     layout();
+    if (P.length) FIRST = true;
   }
 
   function refresh() {
