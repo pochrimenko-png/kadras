@@ -2,7 +2,7 @@
 (function () {
   var K = window.K, h = K.h, api = K.api;
   if (K.role !== 'screen') return;
-  var S = { st: null, key: '' };
+  var S = { st: null, key: '', poll: null };
 
   function qr(text) {
     var el = h('div', { class: 'qr' });
@@ -31,8 +31,23 @@
     w.style.gridTemplateRows = 'repeat(' + Math.ceil(n / best) + ',1fr)';
   }
 
+  function pollScreen(ps, e) {
+    var max = Math.max.apply(null, ps.counts.concat([1]));
+    return K.mount(h('div', { class: 'screen' },
+      h('header', null, h('div', null, h('p', { class: 'kicker' }, e.title || 'Kadras'), h('h1', null, K.POLL.q)),
+        h('div', { class: 'cnt', id: 'cnt' }, 'Atsakė: ' + ps.total)),
+      h('div', { class: 'body pollscr' },
+        h('div', { class: 'pbars big' }, K.POLL.opts.map(function (o, i) {
+          var c = ps.counts[i] || 0;
+          return h('div', { class: 'prow' }, h('span', null, o), h('b', null, String(c)),
+            h('i', { style: 'width:' + Math.round(100 * c / max) + '%' }));
+        })),
+        h('div', { class: 'join' }, qr(K.guestUrl()), h('p', { class: 'adr' }, adr())))));
+  }
+
   function render() {
     var st = S.st;
+    if (S.poll && S.poll.open && st && !st.error) return pollScreen(S.poll, st.event);
     if (!st) return K.mount(h('div', { class: 'screen' }, h('h1', null, 'Jungiamasi…')));
     if (st.error) return K.mount(h('div', { class: 'screen' }, h('h1', null, 'Renginys nerastas: ' + K.event)));
     var e = st.event, ph = e.phase, P = st.photos, votes = ph === 'results' || ph === 'reveal';
@@ -74,9 +89,9 @@
   }
 
   function refresh() {
-    return api.state('').then(function (st) {
-      S.st = st;
-      var key = st.error ? 'x' : JSON.stringify([st.event, st.photos]);
+    return Promise.all([api.state(''), api.pollState('').catch(function () { return null; })]).then(function (rr) {
+      var st = rr[0]; S.st = st; S.poll = rr[1] && !rr[1].error ? rr[1] : null;
+      var key = st.error ? 'x' : JSON.stringify([st.event, st.photos, S.poll]);
       if (key !== S.key) { S.key = key; render(); }
       else { var c = document.getElementById('cnt'); if (c && st.event && st.event.phase === 'vote') c.textContent = 'Balsavo: ' + st.voters; }
     });

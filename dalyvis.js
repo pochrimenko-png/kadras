@@ -5,7 +5,8 @@
 
   var S = {
     name: K.store.get('kadras_name' + K.sfx) || '', phone: K.store.get('kadras_phone' + K.sfx) || '',
-    named: false, st: null, key: '', file: null, prev: null, busy: false, err: '', note: '', pick: null, change: false, revote: false, round: 0
+    named: false, st: null, key: '', file: null, prev: null, busy: false, err: '', note: '', pick: null, change: false, revote: false, round: 0,
+    poll: null, pkey: '', psel: [], pother: '', pedit: false, perr: '', pseen: false
   };
   S.named = !!S.name;
 
@@ -172,9 +173,56 @@
     return out;
   }
 
+  // ---------- опрос на входе ----------
+  function pollBars(ps) {
+    var max = Math.max.apply(null, ps.counts.concat([1]));
+    return h('div', { class: 'pbars' }, K.POLL.opts.map(function (o, i) {
+      var c = ps.counts[i] || 0, mine = ps.mine && ps.mine.choices.indexOf(i + 1) >= 0;
+      return h('div', { class: 'prow' + (mine ? ' me' : '') }, h('span', null, o), h('b', null, String(c)),
+        h('i', { style: 'width:' + Math.round(100 * c / max) + '%' }));
+    }));
+  }
+  function pollAsk() {
+    var out = [h('p', { class: 'kicker' }, 'Kol renkamės'), h('h1', null, K.POLL.q), h('p', { class: 'mut' }, K.POLL.sub)];
+    out.push(h('div', { class: 'popts' }, K.POLL.opts.map(function (o, i) {
+      var n = i + 1, on = S.psel.indexOf(n) >= 0;
+      return h('button', { class: 'popt' + (on ? ' on' : ''), onclick: function () {
+        S.perr = '';
+        if (on) S.psel = S.psel.filter(function (x) { return x !== n; });
+        else if (S.psel.length < 3) S.psel.push(n);
+        else S.perr = 'Daugiausia 3 atsakymai.';
+        render(true);
+      } }, o);
+    })));
+    if (S.psel.indexOf(10) >= 0) out.push(h('input', { class: 't', id: 'pother', maxlength: 80, placeholder: 'Jūsų variantas…', value: S.pother,
+      oninput: function (e) { S.pother = e.target.value; } }));
+    if (S.perr) out.push(h('p', { class: 'err' }, S.perr));
+    out.push(h('div', { class: 'stick' }, h('button', { class: 'btn', disabled: !S.psel.length || S.busy, onclick: pollSend },
+      S.busy ? 'Siunčiama…' : (S.psel.length ? 'Atsakyti' : 'Pasirinkite atsakymą'))));
+    return out;
+  }
+  function pollSend() {
+    if (S.busy || !S.psel.length) return;
+    if (S.psel.indexOf(10) >= 0 && !S.pother.trim()) { S.perr = 'Įrašykite savo variantą.'; render(true); return; }
+    S.busy = true; S.perr = ''; render(true);
+    api.pollAnswer(S.psel.slice(), S.pother).then(function (r) {
+      S.busy = false;
+      if (r.error) { S.perr = r.error === 'closed' ? 'Apklausa jau baigta.' : 'Nepavyko – bandykite dar kartą.'; render(true); return; }
+      S.pedit = false; return refresh(true);
+    }).catch(function () { S.busy = false; S.perr = 'Nepavyko. Patikrinkite internetą.'; render(true); });
+  }
+  function pollDone(ps) {
+    return [h('p', { class: 'ok' }, 'Ačiū! Štai ką atsakė salė:'), h('p', { class: 'mut' }, 'Atsakė: ' + ps.total), pollBars(ps),
+      h('button', { class: 'btn', onclick: function () { S.pseen = true; render(); } }, 'Toliau'),
+      h('button', { class: 'btn ghost', onclick: function () { S.pedit = true; S.psel = (ps.mine.choices || []).slice(); S.pother = ps.mine.other || ''; render(); } }, 'Pakeisti atsakymą')];
+  }
+
   function render(keepScroll) {
     var st = S.st, body, y = window.scrollY;
-    if (!S.named) body = nameForm();
+    var ps = S.poll;
+    if (ps && ps.open && (!ps.mine || S.pedit)) body = pollAsk();
+    else if (ps && ps.open && ps.mine && !S.pseen) body = pollDone(ps);
+    else if (!S.named) body = nameForm();
     else if (!st) body = [h('p', { class: 'mut' }, 'Jungiamasi…')];
     else if (st.error) body = [h('p', { class: 'err' }, 'Renginys nerastas. Nuskenuokite QR kodą dar kartą.')];
     else {
@@ -198,11 +246,15 @@
     return k.join('|');
   }
   function refresh(force) {
-    return api.state(K.device).then(function (st) {
+    return Promise.all([api.state(K.device), api.pollState(K.device).catch(function () { return null; })]).then(function (rr) {
+      var st = rr[0], ps = rr[1] && !rr[1].error ? rr[1] : null;
+      var asking = ps && ps.open && (!ps.mine || S.pedit);
+      var pk = ps ? JSON.stringify(asking ? [ps.open, !!ps.mine] : [ps.open, ps.total, ps.counts, ps.mine, S.pseen]) : '';
+      var pchanged = pk !== S.pkey; S.pkey = pk; S.poll = ps;
       var key = keyOf(st);
       if (st.event && st.event.round !== S.round) { S.round = st.event.round; S.file = null; S.prev = null; S.change = false; S.pick = null; S.revote = false; S.err = ''; S.note = ''; }
       S.st = st;
-      if (force || key !== S.key) { S.key = key; if (S.named || force) render(); }
+      if (force || key !== S.key || pchanged) { S.key = key; if (!(document.activeElement && document.activeElement.id === 'pother') || force) render(!force); }
     });
   }
 

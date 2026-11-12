@@ -200,5 +200,38 @@
     remove: function () { return Promise.resolve(); }
   };
 
+  // ---------- опрос на входе ----------
+  K.POLL = { q: 'Kam jums naujas telefonas?', sub: 'Pasirinkite iki 3 atsakymų',
+    opts: ['😩 Senas / lėtas', '🔋 Baterija nebeišlaiko', '📷 Prasta kamera', '🎬 Noriu gražiau filmuoti', '💾 Nebėra vietos nuotraukoms',
+      '📱 Noriu vesti tinklaraštį', '👀 Visi turi – ir man reikia', '✨ Noriu naujo dizaino', '☕ Man nereikia, atėjau dėl kavos', '✍️ Savo variantas'] };
+  real.pollState = function (dev) { return rpc('kadras_poll_state', { p_event: K.event, p_device: dev || '' }); };
+  real.pollAnswer = function (ch, other) { return rpc('kadras_poll_answer', { p_event: K.event, p_device: K.device, p_choices: ch, p_other: other || '' }); };
+  real.pollHost = function (pin, action) { return rpc('kadras_poll_host', { p_event: K.event, p_pin: pin, p_action: action }); };
+  function pstate(d, dev) {
+    var P = d.poll || (d.poll = { open: true, ans: {} }), counts = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], other = 0, n = 0, k;
+    for (k in P.ans) { n++; P.ans[k].choices.forEach(function (c) { counts[c - 1]++; }); if (P.ans[k].other) other++; }
+    return { open: P.open, total: n, counts: counts, other_n: other, mine: P.ans[dev] || null };
+  }
+  demo.pollState = function (dev) { return Promise.resolve(pstate(load(), dev)); };
+  demo.pollAnswer = function (ch, other) {
+    var d = load(), P = d.poll || (d.poll = { open: true, ans: {} });
+    if (!P.open) return Promise.resolve({ error: 'closed' });
+    ch = ch.filter(function (c, i) { return c >= 1 && c <= 10 && ch.indexOf(c) === i; });
+    if (!ch.length || ch.length > 3) return Promise.resolve({ error: 'bad_choices' });
+    other = ch.indexOf(10) >= 0 ? String(other || '').trim().slice(0, 80) : '';
+    if (ch.indexOf(10) >= 0 && !other) return Promise.resolve({ error: 'no_other' });
+    P.ans[K.device] = { choices: ch, other: other }; save(d);
+    return Promise.resolve({ ok: true });
+  };
+  demo.pollHost = function (pin, action) {
+    var d = load(), P = d.poll || (d.poll = { open: true, ans: {} });
+    if (d.pin && d.pin !== pin) return Promise.resolve({ error: 'wrong_pin' });
+    if (action === 'open') P.open = true; else if (action === 'close') P.open = false; else if (action === 'clear') P.ans = {};
+    save(d);
+    var r = pstate(d, ''), k; r.ok = true; r.texts = [];
+    for (k in P.ans) if (P.ans[k].other) r.texts.push(P.ans[k].other);
+    return Promise.resolve(r);
+  };
+
   K.api = K.demo ? demo : real;
 })();

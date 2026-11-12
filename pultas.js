@@ -3,7 +3,7 @@
   var K = window.K, h = K.h, api = K.api;
   if (K.role !== 'host') return;
   var PK = 'kadras_pin_' + K.event;
-  var S = { pin: '', st: null, key: '', err: '', busy: false, task: null };
+  var S = { pin: '', st: null, key: '', err: '', busy: false, task: null, poll: null };
   try { S.pin = sessionStorage.getItem(PK) || ''; } catch (e) {}
 
   var PHASES = [['wait', 'Пауза'], ['collect', 'Сбор кадров'], ['vote', 'Голосование'], ['results', 'Результаты'], ['reveal', 'Раскрыть авторов']];
@@ -34,7 +34,7 @@
     }).then(function (r) {
       if (r.error) { S.err = ERR[r.error] || ('Ошибка: ' + r.error); S.st = null; render(); return; }
       try { sessionStorage.setItem(PK, pin); } catch (e) {}
-      S.st = r; S.key = JSON.stringify(r); render();
+      S.st = r; S.key = JSON.stringify(r); render(); pollCall('state');
     }).catch(function () { S.err = 'Нет связи с базой. Проверьте интернет.'; render(); });
   }
   function purge() {
@@ -44,6 +44,25 @@
       return api.remove(r.paths || []).then(function () { return call('purge_end'); })
         .catch(function () { S.err = 'Файлы удалить не вышло — нажмите «Удалить все фото» ещё раз.'; render(); });
     });
+  }
+  function pollCall(action) {
+    if (action === 'clear' && !confirm('Очистить все ответы опроса?')) return;
+    api.pollHost(S.pin, action).then(function (r) {
+      if (r.error) { S.err = ERR[r.error] || ('Опрос: ' + r.error); render(); return; }
+      S.poll = r; render();
+    }).catch(function () { S.err = 'Нет связи с базой.'; render(); });
+  }
+  function pollBox() {
+    var P = S.poll;
+    if (!P) return h('div', { class: 'box' }, h('p', null, 'Опрос на входе: загрузка…'));
+    return h('div', { class: 'box' },
+      h('p', null, 'Опрос «' + K.POLL.q + '» — ', h('b', null, P.open ? 'ОТКРЫТ' : 'закрыт'), ' · ответили: ', h('b', null, String(P.total)),
+        P.open ? ' · большой экран показывает опрос' : ''),
+      h('div', { class: 'line' },
+        h('button', { class: P.open ? '' : 'on', onclick: function () { pollCall(P.open ? 'close' : 'open'); } }, P.open ? 'Закрыть опрос (экран — к кадрам)' : 'Открыть опрос'),
+        h('button', { class: 'red', onclick: function () { pollCall('clear'); } }, 'Очистить ответы')),
+      h('div', { style: 'font-size:15px;line-height:1.5' }, K.POLL.opts.map(function (o, i) { return h('div', null, (P.counts[i] || 0) + ' — ' + o); })),
+      P.texts && P.texts.length ? h('p', { style: 'font-size:15px' }, 'Свои варианты: ' + P.texts.join(' · ')) : null);
   }
   function link(extra) {
     var p = [];
@@ -73,6 +92,7 @@
     K.mount(h('div', { class: 'host' },
       h('h1', null, 'Пульт · ' + (e.title || e.id)),
       S.err && h('p', { style: 'color:var(--red);font-weight:700' }, S.err),
+      pollBox(),
       h('div', { class: 'box' },
         h('p', null, 'Раунд ', h('b', null, String(e.round)), ' · сейчас: ', h('b', null, phName), ' · кадров в раунде: ', h('b', null, String(st.photos.length)),
           ' · проголосовало: ', h('b', null, String(st.voters)), ' · всего кадров: ' + st.total),
@@ -111,6 +131,10 @@
   if (S.pin) login(S.pin);
   K.poll(function () {
     if (!S.st || S.busy) return;
+    api.pollHost(S.pin, 'state').then(function (r) {
+      if (r.error) return;
+      if (JSON.stringify(r) !== JSON.stringify(S.poll) && document.activeElement && document.activeElement.id !== 'task') { S.poll = r; render(); }
+    }).catch(function () {});
     return api.host(S.pin, 'state').then(function (r) {
       if (r.error) return;
       var key = JSON.stringify(r);
