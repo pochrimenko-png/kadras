@@ -7,7 +7,8 @@
     name: K.store.get('kadras_name' + K.sfx) || '', phone: K.store.get('kadras_phone' + K.sfx) || '',
     named: false, st: null, key: '', file: null, prev: null, busy: false, err: '', note: '', pick: null, change: false, revote: false, round: 0,
     poll: null, pkey: '', psel: [], pother: '', pedit: false, perr: '', pseen: false,
-    dstream: null, dvideo: null, dstate: null, dshot: '', dmsg: '', dtimer: null
+    dstream: null, dvideo: null, dstate: null, dshot: '', dmsg: '', dtimer: null,
+    rstream: null, rvideo: null, rs: null, rtimer: null, rdone: '', rrec: false, rmsg: ''
   };
   S.named = !!S.name;
 
@@ -283,6 +284,85 @@
     return out;
   }
 
+  // ---------- эстафета ----------
+  function relayJoin() {
+    if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) || !window.MediaRecorder) { S.rmsg = 'Šis telefonas negali įrašyti puslapyje — stebėkite ekraną 🙂'; render(); return; }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true })
+      .then(function (st) {
+        S.rstream = st;
+        var v = document.createElement('video'); v.playsInline = true; v.muted = true; v.autoplay = true; v.setAttribute('playsinline', ''); v.className = 'dcam';
+        v.srcObject = st; v.play().catch(function () {}); S.rvideo = v;
+        return api.relayJoin(S.name);
+      }).then(function (r) { if (r && r.error) S.rmsg = r.error === 'closed' ? 'Priėmimas baigtas.' : 'Nepavyko prisijungti.'; render(); relayLoop(); })
+      .catch(function () { S.rmsg = 'Kameros įjungti nepavyko.'; render(); });
+  }
+  function relayLoop() {
+    if (S.rtimer) return;
+    S.rtimer = setInterval(function () {
+      if (!S.st || !K.isRelay(S.st.event)) { clearInterval(S.rtimer); S.rtimer = null; return; }
+      K.relayFetch(K.device).then(function (rs) { S.rs = rs; rtick(); }).catch(function () {});
+    }, 1000);
+  }
+  function relayWin(rs) {
+    if (!rs || !rs.relay_at || !rs.slot) return null;
+    var t0 = new Date(rs.relay_at).getTime(), sec = (rs.sec || 5) * 1000;
+    return { a: t0 + (rs.slot - 1) * sec, b: t0 + rs.slot * sec, now: K.relayNow(rs), sec: sec };
+  }
+  function rtick() {
+    var w = relayWin(S.rs), big = document.getElementById('rbig'), sub = document.getElementById('rsub');
+    if (!big) return;
+    if (!w) { big.textContent = ''; if (sub) sub.textContent = 'Laukite starto · prisijungė: ' + (S.rs ? S.rs.n : 0); return; }
+    var now = K.relayNow(S.rs), key = S.rs.relay_at + ':' + S.rs.slot;
+    if (now < w.a) {
+      var left = Math.ceil((w.a - now) / 1000);
+      big.textContent = left <= 3 ? String(left) : ''; big.className = 'rbig' + (left <= 3 ? ' soon' : '');
+      if (sub) sub.textContent = 'Jūsų eilė: Nr. ' + S.rs.slot + ' · po ' + left + ' s';
+      if (w.a - now < 1200 && S.rdone !== key && !S.rrec) setTimeout(function () { record(key, w); }, Math.max(0, w.a - K.relayNow(S.rs)));
+      setTimeout(rtick, 250);
+    } else if (now < w.b) {
+      big.textContent = '● ' + Math.ceil((w.b - now) / 1000); big.className = 'rbig rec';
+      if (sub) sub.textContent = 'FILMUOJATE! Nustebinkite 🎬';
+      if (S.rdone !== key && !S.rrec) record(key, w);
+      setTimeout(rtick, 250);
+    } else {
+      big.textContent = ''; if (sub && !S.rrec) sub.textContent = S.rdone === key ? 'Ačiū! Jūsų 5 sekundės — filme 🎬' : 'Jūsų eilė praėjo.';
+    }
+  }
+  function record(key, w) {
+    if (S.rrec || S.rdone === key || !S.rstream) return;
+    S.rrec = true; S.rdone = key;
+    var mt = ['video/mp4', 'video/webm;codecs=vp8,opus', 'video/webm'].filter(function (t) { return MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t); })[0] || '';
+    var rec, chunks = [];
+    try { rec = mt ? new MediaRecorder(S.rstream, { mimeType: mt, videoBitsPerSecond: 3000000 }) : new MediaRecorder(S.rstream); } catch (e) { S.rrec = false; S.rmsg = 'Įrašyti nepavyko.'; render(); return; }
+    rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+    rec.onstop = function () {
+      var type = (rec.mimeType || mt || 'video/webm').split(';')[0], blob = new Blob(chunks, { type: type });
+      var ext = /mp4/.test(type) ? 'mp4' : 'webm', path = K.event + '/' + S.st.event.round + '/' + K.uuid() + '.' + ext;
+      var sub = document.getElementById('rsub'); if (sub) sub.textContent = 'Siunčiama…';
+      K.videoThumb(blob).then(function (t) { return Promise.all([api.uploadAs(path, blob, type), api.upload(K.thumb(path), t.blob)]); })
+        .then(function () { return api.addRelay(S.name, S.phone, path); })
+        .then(function (r) { S.rrec = false; if (r.error) throw new Error(r.error); rtick(); return refresh(true); })
+        .catch(function () { S.rrec = false; S.rmsg = 'Nepavyko išsiųsti — patikrinkite internetą.'; render(); });
+    };
+    rec.start(500);
+    setTimeout(function () { try { rec.stop(); } catch (e) {} }, Math.max(1000, w.b - K.relayNow(S.rs)));
+  }
+  function relayView() {
+    var out = [h('p', { class: 'kicker' }, 'Estafeta 🎬')];
+    if (S.rmsg) out.push(h('p', { class: 'err' }, S.rmsg));
+    if (!S.rstream) {
+      out.push(h('h1', null, 'Jūsų 5 sekundės filme'));
+      out.push(h('p', { class: 'mut' }, 'Prisijunkite — gausite atsitiktinį numerį. Kai ateis jūsų eilė, telefonas pats filmuos 5 sekundes. Nustebinkite visus!'));
+      out.push(h('button', { class: 'btn big', onclick: relayJoin }, '📷 Prisijungti'));
+      return out;
+    }
+    var wrap = h('div', { class: 'dwrap' }, h('div', { class: 'rbig', id: 'rbig' }, ''));
+    wrap.insertBefore(S.rvideo, wrap.firstChild);
+    out.push(wrap, h('p', { class: 'rsub', id: 'rsub' }, 'Laukite starto…'), h('p', { class: 'mut small' }, 'Neužrakinkite ekrano ir neišeikite iš puslapio.'));
+    relayLoop(); setTimeout(rtick, 50);
+    return out;
+  }
+
   function render(keepScroll) {
     var st = S.st, body, y = window.scrollY;
     var ps = S.poll;
@@ -293,7 +373,7 @@
     else if (st.error) body = [h('p', { class: 'err' }, 'Renginys nerastas. Nuskenuokite QR kodą dar kartą.')];
     else {
       var ph = st.event.phase;
-      body = ph === 'collect' ? (st.my_photo && !S.change ? sent() : (K.isDuel(st.event) ? duelView() : shoot())) : ph === 'vote' ? vote() :
+      body = ph === 'collect' ? (st.my_photo && !S.change ? sent() : (K.isDuel(st.event) ? duelView() : K.isRelay(st.event) ? relayView() : shoot())) : ph === 'vote' ? vote() :
         (ph === 'results' || ph === 'reveal') ? results() : waiting();
       body.push(foot());
     }

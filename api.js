@@ -281,5 +281,15 @@
     });
   };
 
+  // ---------- эстафета: каждый снимает свои N секунд по очереди ----------
+  real.relayJoin = function (author) { return rpc('kadras_relay_join', { p_event: K.event, p_device: K.device, p_author: author || '' }); };
+  real.relayState = function (dev) { return rpc('kadras_relay_state', { p_event: K.event, p_device: dev || '' }); };
+  real.relayStart = function (pin, sec) { return rpc('kadras_relay_start', { p_event: K.event, p_pin: pin, p_sec: sec || 5 }); };
+  real.addRelay = function (author, phone, path) { return rpc('kadras_add_relay', { p_event: K.event, p_device: K.device, p_author: author, p_phone: phone, p_path: path }); };
+  K.isRelay = function (ev) { return ev && ev.phase === 'collect' && /^ESTAFETA/i.test(ev.task || ''); };
+  K.relayFetch = function (dev) { return K.api.relayState(dev).then(function (r) { r._got = Date.now(); return r; }); };
+  // время по часам сервера, мс
+  K.relayNow = function (rs) { return Date.now() + (new Date(rs.now).getTime() - rs._got); };
+
   K.api = K.demo ? demo : real;
 })();

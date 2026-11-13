@@ -14,6 +14,7 @@
     ['Момент', 'Nufotografuokite, kaip jūsų kaimynas nusijuokia. Prašyti nusijuokti – draudžiama.'],
     ['Общая сцена', 'Vienas įvykis, vienas dublis. Siųskite savo kadrą.'],
     ['Слепой тест №2', 'Jūsų geriausias šios dienos kadras.'],
+    ['Эстафета (каждый по 5 с)', 'ESTAFETA: kiekvienas — 5 sekundės. Nustebinkite!'],
     ['Фильм зала (видео 5 с)', 'VIDEO: vienas įvykis, vienas dublis — nufilmuokite 5 sekundes ir siųskite.'],
     ['Фотодуэль', 'DVIKOVA! Nugara į nugarą, 3 žingsniai, atsisukite ir fotografuokite. Kas pirmas?']
   ];
@@ -95,6 +96,11 @@
       h('h1', null, 'Пульт · ' + (e.title || e.id)),
       S.err && h('p', { style: 'color:var(--red);font-weight:700' }, S.err),
       pollBox(),
+      /^ESTAFETA/i.test(e.task || '') && e.phase === 'collect' && h('div', { class: 'box' },
+        h('p', null, 'Эстафета: все жмут «Prisijungti» (камера включается). Жми старт — номера раздадутся случайно, каждый снимет свои 5 секунд по очереди. Потом «Результаты» — общий фильм.'),
+        h('div', { class: 'line' }, h('button', { class: 'on', style: 'font-size:22px;padding:18px 26px', onclick: function () {
+          api.relayStart(S.pin, 5).then(function (r) { S.err = r.error ? (ERR[r.error] || ('Эстафета: ' + r.error)) : ('Эстафета пошла: участников ' + r.n); render(); });
+        } }, '🎬 СТАРТ ЭСТАФЕТЫ'))),
       /^DVIKOVA/i.test(e.task || '') && e.phase === 'collect' && h('div', { class: 'box' },
         h('p', null, 'Фотодуэль: двое с открытой страницей нажали «Įjungti kamerą» → встали спиной к спине → жми старт. На «0» телефоны снимут сами.'),
         h('div', { class: 'line' }, h('button', { class: 'on', style: 'font-size:22px;padding:18px 26px', onclick: function () {

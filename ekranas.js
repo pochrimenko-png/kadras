@@ -2,7 +2,7 @@
 (function () {
   var K = window.K, h = K.h, api = K.api;
   if (K.role !== 'screen') return;
-  var S = { st: null, key: '', poll: null, ds: null }, SEEN = {}, FIRST = false;
+  var S = { st: null, key: '', poll: null, ds: null, rs: null }, SEEN = {}, FIRST = false;
 
   function qr(text) {
     var el = h('div', { class: 'qr' });
@@ -72,7 +72,7 @@
   function render() {
     var st = S.st;
     if (S.poll && S.poll.open && st && !st.error) return pollScreen(S.poll, st.event);
-    if (st && !st.error && st.event.phase === 'results' && K.isVideoTask(st.event) && st.photos.some(function (p) { return p.kind === 'video' || K.isVideo(p.path); })) return filmScreen(st);
+    if (st && !st.error && st.event.phase === 'results' && (K.isVideoTask(st.event) || /^ESTAFETA/i.test(st.event.task || '')) && st.photos.some(function (p) { return p.kind === 'video' || K.isVideo(p.path); })) return filmScreen(st);
     film.key = '';
     if (!st) return K.mount(h('div', { class: 'screen' }, h('h1', null, 'Jungiamasi…')));
     if (st.error) return K.mount(h('div', { class: 'screen' }, h('h1', null, 'Renginys nerastas: ' + K.event)));
@@ -116,6 +116,27 @@
     layout();
     if (P.length) FIRST = true;
     if (K.isDuel(e)) duelOverlay();
+    if (K.isRelay(e)) relayOverlay();
+  }
+  // Эстафета на большом экране: «Dabar filmuoja Nr. X» и отсчёт
+  var rtimer = null;
+  function relayOverlay() {
+    if (rtimer) return;
+    rtimer = setInterval(function () {
+      if (!S.st || !K.isRelay(S.st.event)) { clearInterval(rtimer); rtimer = null; var o = document.getElementById('rov'); if (o) o.remove(); return; }
+      K.relayFetch('').then(function (rs) { S.rs = rs; rdraw(); }).catch(function () {});
+    }, 1000);
+  }
+  function rdraw() {
+    var rs = S.rs, o = document.getElementById('rov');
+    if (!o) { o = h('div', { class: 'rov', id: 'rov' }); document.body.appendChild(o); }
+    if (!rs.relay_at) { o.innerHTML = '<b>Estafeta 🎬</b><span>Prisijungė: ' + rs.n + '</span>'; return; }
+    var now = K.relayNow(rs), t0 = new Date(rs.relay_at).getTime(), sec = (rs.sec || 5) * 1000;
+    if (now < t0) { o.innerHTML = '<b>' + Math.ceil((t0 - now) / 1000) + '</b><span>Estafeta prasideda · ' + rs.n + ' dalyviai</span>'; setTimeout(rdraw, 250); return; }
+    var k = Math.floor((now - t0) / sec) + 1;
+    if (k > rs.n) { o.remove(); return; }
+    o.innerHTML = '<b>Nr. ' + k + '</b><span>dabar filmuoja · liko ' + Math.ceil((t0 + k * sec - now) / 1000) + ' s · ' + k + ' / ' + rs.n + '</span>';
+    setTimeout(rdraw, 250);
   }
   // Фотодуэль на большом экране: огромный отсчёт 5-4-3-2-1 и вспышка
   var dtimer = null;
