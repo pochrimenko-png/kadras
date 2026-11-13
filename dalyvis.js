@@ -292,6 +292,7 @@
         S.rstream = st;
         var v = document.createElement('video'); v.playsInline = true; v.muted = true; v.autoplay = true; v.setAttribute('playsinline', ''); v.className = 'dcam';
         v.srcObject = st; v.play().catch(function () {}); S.rvideo = v;
+        try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then(function (l) { S.rlock = l; }).catch(function () {}); } catch (e) {}
         return api.relayJoin(S.name);
       }).then(function (r) { if (r && r.error) S.rmsg = r.error === 'closed' ? 'Priėmimas baigtas.' : 'Nepavyko prisijungti.'; render(); relayLoop(); })
       .catch(function () { S.rmsg = 'Kameros įjungti nepavyko.'; render(); });
@@ -309,19 +310,23 @@
     return { a: t0 + (rs.slot - 1) * sec, b: t0 + rs.slot * sec, now: K.relayNow(rs), sec: sec };
   }
   function rtick() {
-    var w = relayWin(S.rs), big = document.getElementById('rbig'), sub = document.getElementById('rsub');
+    var w = relayWin(S.rs), big = document.getElementById('rbig'), sub = document.getElementById('rsub'), rdy = document.getElementById('rready');
     if (!big) return;
-    if (!w) { big.textContent = ''; if (sub) sub.textContent = 'Laukite starto · prisijungė: ' + (S.rs ? S.rs.n : 0); return; }
+    // до старта — цветной экран «готов»: ведущий видит поднятые телефоны издалека
+    if (rdy) rdy.hidden = !!(S.rs && (S.rs.relay_at || S.rs.joined === false));
+    if (!w) { big.textContent = ''; var rn = document.getElementById('rreadyn'); if (rn) rn.textContent = 'Pasiruošę: ' + (S.rs ? S.rs.n : 1);
+      if (sub) sub.textContent = 'Laukite starto · pasiruošę: ' + (S.rs ? S.rs.n : 0); return; }
     var now = K.relayNow(S.rs), key = S.rs.relay_at + ':' + S.rs.slot;
     if (now < w.a) {
       var left = Math.ceil((w.a - now) / 1000);
       big.textContent = left <= 3 ? String(left) : ''; big.className = 'rbig' + (left <= 3 ? ' soon' : '');
+      if (left <= 3 && S.rvib !== key + left) { S.rvib = key + left; try { if (navigator.vibrate) navigator.vibrate(left === 1 ? 300 : 120); } catch (e) {} }
       if (sub) sub.textContent = 'Jūsų eilė: Nr. ' + S.rs.slot + ' · po ' + left + ' s';
       if (w.a - now < 1200 && S.rdone !== key && !S.rrec) setTimeout(function () { record(key, w); }, Math.max(0, w.a - K.relayNow(S.rs)));
       setTimeout(rtick, 250);
     } else if (now < w.b) {
       big.textContent = '● ' + Math.ceil((w.b - now) / 1000); big.className = 'rbig rec';
-      if (sub) sub.textContent = 'FILMUOJATE! Nustebinkite 🎬';
+      if (sub) sub.textContent = 'FILMUOJATE! 🎬';
       if (S.rdone !== key && !S.rrec) record(key, w);
       setTimeout(rtick, 250);
     } else {
@@ -348,17 +353,24 @@
     setTimeout(function () { try { rec.stop(); } catch (e) {} }, Math.max(1000, w.b - K.relayNow(S.rs)));
   }
   function relayView() {
-    var out = [h('p', { class: 'kicker' }, 'Estafeta 🎬')];
+    var out = [h('p', { class: 'kicker' }, 'Estafetė 🎬')];
     if (S.rmsg) out.push(h('p', { class: 'err' }, S.rmsg));
     if (!S.rstream) {
       out.push(h('h1', null, 'Jūsų 5 sekundės filme'));
-      out.push(h('p', { class: 'mut' }, 'Prisijunkite — gausite atsitiktinį numerį. Kai ateis jūsų eilė, telefonas pats filmuos 5 sekundes. Nustebinkite visus!'));
+      out.push(h('p', { class: 'mut' }, 'Prisijunkite — gausite atsitiktinį numerį. Kai ateis jūsų eilė, telefonas pats filmuos 5 sekundes.'));
       out.push(h('button', { class: 'btn big', onclick: relayJoin }, '📷 Prisijungti'));
       return out;
     }
     var wrap = h('div', { class: 'dwrap' }, h('div', { class: 'rbig', id: 'rbig' }, ''));
     wrap.insertBefore(S.rvideo, wrap.firstChild);
-    out.push(wrap, h('p', { class: 'rsub', id: 'rsub' }, 'Laukite starto…'), h('p', { class: 'mut small' }, 'Neužrakinkite ekrano ir neišeikite iš puslapio.'));
+    var RC = ['#FFE34F', '#3DDC84', '#FF5CA8', '#35C8FF', '#FF8A3D'], ci = 0, di;
+    for (di = 0; di < K.device.length; di++) ci = (ci + K.device.charCodeAt(di)) % RC.length;
+    var rdy = h('div', { class: 'rready', id: 'rready', style: 'background:' + RC[ci] },
+      h('div', { class: 'rrok' }, '✓'), h('div', { class: 'rrt' }, 'KAMERA PARUOŠTA'),
+      h('div', { class: 'rrn' }, S.name || ''), h('div', { class: 'rrs' }, 'Pakelkite telefoną ir parodykite ekraną vedėjui'),
+      h('div', { class: 'rrc', id: 'rreadyn' }, ''));
+    rdy.hidden = !!(S.rs && S.rs.relay_at);
+    out.push(wrap, h('p', { class: 'rsub', id: 'rsub' }, 'Laukite starto…'), h('p', { class: 'mut small' }, 'Neužrakinkite ekrano ir neišeikite iš puslapio.'), rdy);
     relayLoop(); setTimeout(rtick, 50);
     return out;
   }

@@ -14,7 +14,7 @@
     ['Момент', 'Nufotografuokite, kaip jūsų kaimynas nusijuokia. Prašyti nusijuokti – draudžiama.'],
     ['Общая сцена', 'Vienas įvykis, vienas dublis. Siųskite savo kadrą.'],
     ['Слепой тест №2', 'Jūsų geriausias šios dienos kadras.'],
-    ['Эстафета (каждый по 5 с)', 'ESTAFETA: kiekvienas — 5 sekundės. Nustebinkite!'],
+    ['Эстафета (каждый по 5 с)', 'ESTAFETĖ: 5 sekundės. Nufilmuokite tai, ko čia nenufilmuos niekas kitas.'],
     ['Фильм зала (видео 5 с)', 'VIDEO: vienas įvykis, vienas dublis — nufilmuokite 5 sekundes ir siųskite.'],
     ['Фотодуэль', 'DVIKOVA! Nugara į nugarą, 3 žingsniai, atsisukite ir fotografuokite. Kas pirmas?']
   ];
@@ -75,6 +75,13 @@
     return location.pathname + (p.length ? '?' + p.join('&') : '');
   }
 
+  // эстафета: сколько телефонов готово (обновляется раз в 2 секунды)
+  setInterval(function () {
+    var e = S.st && S.st.event;
+    if (!e || e.phase !== 'collect' || !/^ESTAFET/i.test(e.task || '')) return;
+    K.relayFetch('').then(function (rs) { S.rn = rs.n; var el = document.getElementById('rn'); if (el) el.textContent = String(rs.n); }).catch(function () {});
+  }, 2000);
+
   function render() {
     var st = S.st;
     if (!st) {
@@ -96,8 +103,9 @@
       h('h1', null, 'Пульт · ' + (e.title || e.id)),
       S.err && h('p', { style: 'color:var(--red);font-weight:700' }, S.err),
       pollBox(),
-      /^ESTAFETA/i.test(e.task || '') && e.phase === 'collect' && h('div', { class: 'box' },
-        h('p', null, 'Эстафета: все жмут «Prisijungti» (камера включается). Жми старт — номера раздадутся случайно, каждый снимет свои 5 секунд по очереди. Потом «Результаты» — общий фильм.'),
+      /^ESTAFET/i.test(e.task || '') && e.phase === 'collect' && h('div', { class: 'box' },
+        h('p', null, 'Эстафета: все жмут «Prisijungti» — телефон становится цветным «PASIRUOŠĘS». Попроси поднять телефоны экраном к тебе. Жми старт — номера раздадутся случайно, через 8 секунд первый снимает свои 5 секунд, дальше без остановки. Потом «Результаты» — общий фильм.'),
+        h('p', { style: 'font-size:26px;margin:6px 0' }, 'Готовы: ', h('b', { id: 'rn', style: 'font-size:40px' }, S.rn == null ? '…' : String(S.rn))),
         h('div', { class: 'line' }, h('button', { class: 'on', style: 'font-size:22px;padding:18px 26px', onclick: function () {
           api.relayStart(S.pin, 5).then(function (r) { S.err = r.error ? (ERR[r.error] || ('Эстафета: ' + r.error)) : ('Эстафета пошла: участников ' + r.n); render(); });
         } }, '🎬 СТАРТ ЭСТАФЕТЫ'))),

@@ -75,7 +75,7 @@
   function render() {
     var st = S.st;
     if (S.poll && S.poll.open && st && !st.error) return pollScreen(S.poll, st.event);
-    if (st && !st.error && st.event.phase === 'results' && (K.isVideoTask(st.event) || /^ESTAFETA/i.test(st.event.task || '')) && st.photos.some(function (p) { return p.kind === 'video' || K.isVideo(p.path); })) return filmScreen(st);
+    if (st && !st.error && st.event.phase === 'results' && (K.isVideoTask(st.event) || /^ESTAFET/i.test(st.event.task || '')) && st.photos.some(function (p) { return p.kind === 'video' || K.isVideo(p.path); })) return filmScreen(st);
     film.key = '';
     if (!st) return K.mount(h('div', { class: 'screen' }, h('h1', null, 'Jungiamasi…')));
     if (st.error) return K.mount(h('div', { class: 'screen' }, h('h1', null, 'Renginys nerastas: ' + K.event)));
@@ -133,9 +133,9 @@
   function rdraw() {
     var rs = S.rs, o = document.getElementById('rov');
     if (!o) { o = h('div', { class: 'rov', id: 'rov' }); document.body.appendChild(o); }
-    if (!rs.relay_at) { o.innerHTML = '<b>Estafeta 🎬</b><span>Prisijungė: ' + rs.n + '</span>'; return; }
+    if (!rs.relay_at) { o.innerHTML = '<b>' + rs.n + '</b><span>pasiruošę · pakelkite telefonus 🎬</span>'; return; }
     var now = K.relayNow(rs), t0 = new Date(rs.relay_at).getTime(), sec = (rs.sec || 5) * 1000;
-    if (now < t0) { o.innerHTML = '<b>' + Math.ceil((t0 - now) / 1000) + '</b><span>Estafeta prasideda · ' + rs.n + ' dalyviai</span>'; setTimeout(rdraw, 250); return; }
+    if (now < t0) { o.innerHTML = '<b>' + Math.ceil((t0 - now) / 1000) + '</b><span>Estafetė prasideda · dalyvių: ' + rs.n + '</span>'; setTimeout(rdraw, 250); return; }
     var k = Math.floor((now - t0) / sec) + 1;
     if (k > rs.n) { o.remove(); return; }
     o.innerHTML = '<b>Nr. ' + k + '</b><span>dabar filmuoja · liko ' + Math.ceil((t0 + k * sec - now) / 1000) + ' s · ' + k + ' / ' + rs.n + '</span>';
