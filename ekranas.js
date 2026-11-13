@@ -45,9 +45,35 @@
         h('div', { class: 'join' }, qr(K.guestUrl()), h('p', { class: 'adr' }, adr())))));
   }
 
+  // «Фильм зала»: ролики раунда подряд на весь экран со звуком, в конце — титры.
+  var film = { key: '', i: 0 };
+  function filmScreen(st) {
+    var V = st.photos.filter(function (p) { return p.kind === 'video' || K.isVideo(p.path); });
+    var key = V.map(function (p) { return p.id; }).join();
+    if (film.key === key && document.getElementById('film')) return;
+    film.key = key; film.i = 0;
+    var v = h('video', { id: 'filmv', playsinline: true, class: 'filmv' }), cap = h('div', { class: 'filmcap', id: 'filmcap' }), btn = h('button', { class: 'filmbtn', id: 'filmbtn' }, '▶ Paleisti filmą');
+    K.mount(h('div', { class: 'film', id: 'film' }, v, cap, btn));
+    function credits() {
+      K.mount(h('div', { class: 'film credits' }, h('p', { class: 'kicker' }, e0.title || 'Kadras'), h('h1', null, 'Mūsų salės filmas 🎬'),
+        h('p', null, 'Filmavo: ' + V.map(function (p) { return p.author || ('Nr. ' + p.num); }).join(' · '))));
+    }
+    var e0 = st.event;
+    function play(i) {
+      if (i >= V.length) return credits();
+      film.i = i; v.src = api.url(V[i].path); cap.textContent = 'Nr. ' + V[i].num + (V[i].author ? ' · ' + V[i].author : '');
+      var pr = v.play(); if (pr && pr.catch) pr.catch(function () { v.muted = true; v.play().catch(function () {}); btn.textContent = '🔊 Įjungti garsą'; btn.style.display = 'block'; });
+    }
+    v.onended = function () { play(film.i + 1); };
+    btn.onclick = function () { btn.style.display = 'none'; v.muted = false; if (v.paused) play(film.i); };
+    play(0);
+  }
+
   function render() {
     var st = S.st;
     if (S.poll && S.poll.open && st && !st.error) return pollScreen(S.poll, st.event);
+    if (st && !st.error && st.event.phase === 'results' && K.isVideoTask(st.event) && st.photos.some(function (p) { return p.kind === 'video' || K.isVideo(p.path); })) return filmScreen(st);
+    film.key = '';
     if (!st) return K.mount(h('div', { class: 'screen' }, h('h1', null, 'Jungiamasi…')));
     if (st.error) return K.mount(h('div', { class: 'screen' }, h('h1', null, 'Renginys nerastas: ' + K.event)));
     var e = st.event, ph = e.phase, P = st.photos, votes = ph === 'results' || ph === 'reveal';
@@ -77,7 +103,7 @@
         else if (ph === 'results') cap = h('div', { class: 'cap' }, h('span', null, balsai(p.votes || 0)), h('b', null, String(p.votes || 0)));
         var fresh = !SEEN[p.id]; SEEN[p.id] = 1;
         return h('div', { class: 'tile' + (winners.indexOf(p) >= 0 ? ' win' : '') + (fresh && FIRST ? ' pop' : '') },
-          h('img', { src: api.url(small ? K.thumb(p.path) : p.path), alt: '' }), h('span', { class: 'n' }, String(p.num)), cap,
+          p.kind === 'video' || K.isVideo(p.path) ? h('video', { src: api.url(p.path), poster: api.url(K.thumb(p.path)), muted: true, autoplay: true, loop: true, playsinline: true, class: 'tv' }) : h('img', { src: api.url(small ? K.thumb(p.path) : p.path), alt: '' }), h('span', { class: 'n' }, String(p.num)), cap,
           ph === 'results' && max > 0 && h('i', { class: 'vb', style: 'width:' + Math.round(100 * (p.votes || 0) / max) + '%' }));
       }));
       body = [wall, (ph === 'collect' || ph === 'vote') && h('div', { class: 'join' }, qr(K.guestUrl()), h('p', { class: 'adr' }, adr()))];

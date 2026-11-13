@@ -51,7 +51,9 @@
     if (K.demo) app.appendChild(K.h('div', { class: 'badge' }, 'DEMO'));
     app.appendChild(node);
   };
-  K.thumb = function (path) { return String(path).replace(/\.jpg$/, '_s.jpg'); };
+  K.thumb = function (path) { return String(path).replace(/\.(jpg|mp4|mov|webm)$/, '_s.jpg'); };
+  K.isVideoTask = function (ev) { return ev && /^VIDEO/i.test(ev.task || ''); };
+  K.isVideo = function (path) { return /\.(mp4|mov|webm)$/i.test(String(path)); };
   K.guestUrl = function () {
     var p = [];
     if (K.event !== 'kufa') p.push('e=' + K.event);
@@ -251,6 +253,33 @@
     return new Date(ds.duel_at).getTime() - (Date.now() + off);
   };
   K.duelFetch = function () { return K.api.duelState().then(function (r) { r._got = Date.now(); return r; }); };
+
+  // ---------- видео от зала ----------
+  real.addVideo = function (author, phone, path) { return rpc('kadras_add_video', { p_event: K.event, p_device: K.device, p_author: author, p_phone: phone, p_path: path }); };
+  real.uploadAs = function (path, blob, type) {
+    return fetch(C.url + '/storage/v1/object/' + C.bucket + '/' + path, { method: 'POST', headers: head({ 'Content-Type': type || 'application/octet-stream' }), body: blob })
+      .then(function (r) { if (!r.ok) throw new Error(r.status === 413 ? 'too_big' : 'upload ' + r.status); });
+  };
+  demo.addVideo = function (a, ph, path) { return demo.addPhoto(a, ph, path); };
+  demo.uploadAs = function (path, blob) { return /_s\.jpg$/.test(path) ? demo.upload(path, blob) : Promise.resolve(); };
+  // Превью видео: первый кадр в JPEG (для сетки и пульта).
+  K.videoThumb = function (file) {
+    return new Promise(function (res, rej) {
+      var u = URL.createObjectURL(file), v = document.createElement('video'), done = false;
+      v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = u;
+      function grab() {
+        if (done) return; done = true;
+        var s = Math.min(1, 480 / Math.max(v.videoWidth || 480, v.videoHeight || 480)), c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round((v.videoWidth || 480) * s)); c.height = Math.max(1, Math.round((v.videoHeight || 270) * s));
+        try { c.getContext('2d').drawImage(v, 0, 0, c.width, c.height); } catch (e) {}
+        c.toBlob(function (b) { URL.revokeObjectURL(u); b ? res({ blob: b, dur: v.duration }) : rej(new Error('thumb')); }, 'image/jpeg', 0.7);
+      }
+      v.onloadeddata = function () { try { v.currentTime = Math.min(0.3, (v.duration || 1) / 2); } catch (e) { grab(); } };
+      v.onseeked = grab;
+      v.onerror = function () { URL.revokeObjectURL(u); rej(new Error('video')); };
+      setTimeout(grab, 6000);
+    });
+  };
 
   K.api = K.demo ? demo : real;
 })();

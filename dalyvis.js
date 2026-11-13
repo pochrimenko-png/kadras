@@ -27,7 +27,7 @@
     var a = n % 10, b = n % 100;
     return n + ' ' + (a === 1 && b !== 11 ? 'balsas' : (a >= 2 && (b < 10 || b >= 20) ? 'balsai' : 'balsų'));
   }
-  function img(path, cls, small) { return h('img', { src: api.url(small ? K.thumb(path) : path), class: cls || '', alt: '', loading: 'lazy' }); }
+  function img(path, cls, small) { return h('img', { src: api.url(small || K.isVideo(path) ? K.thumb(path) : path), class: cls || '', alt: '', loading: 'lazy' }); }
   function foot() {
     return h('p', { class: 'mut small', style: 'margin-top:auto' }, S.name + ' · ',
       h('a', { href: '#', style: 'color:inherit', onclick: function (e) { e.preventDefault(); S.named = false; render(); } }, 'keisti vardą'));
@@ -60,6 +60,8 @@
   }
   function send() {
     if (S.busy || !S.file) return;
+    var vid = /^video\//.test(S.file.type || '') || K.isVideoTask(S.st.event) && !/^image\//.test(S.file.type || '');
+    if (vid) return sendVideo();
     var path = K.event + '/' + S.st.event.round + '/' + K.uuid() + '.jpg';
     S.busy = true; S.err = ''; render();
     Promise.all([K.shrink(S.file, 1600, 0.82), K.shrink(S.file, 480, 0.7)])
@@ -71,27 +73,46 @@
         S.file = null; S.prev = null; S.change = false; S.busy = false;
         return refresh(true);
       })
-      .catch(function (e) {
-        S.busy = false;
-        S.err = e.message === 'closed' ? 'Kadrų priėmimas jau baigtas.' : e.message === 'full' ? 'Kadrų jau per daug – šis nebetilpo.' :
-          (e.message === 'image' || e.message === 'blob') ? 'Šios nuotraukos atidaryti nepavyko. Fotografuokite iš naujo.' :
-          'Nepavyko išsiųsti. Patikrinkite internetą ir bandykite dar kartą.';
-        render();
-      });
+      .catch(fail);
+  }
+  function fail(e) {
+    S.busy = false;
+    S.err = e.message === 'closed' ? 'Priėmimas jau baigtas.' : e.message === 'full' ? 'Kadrų jau per daug – šis nebetilpo.' :
+      e.message === 'too_big' ? 'Vaizdo įrašas per didelis — nufilmuokite trumpiau (5 s).' :
+      (e.message === 'image' || e.message === 'blob' || e.message === 'video') ? 'Šio failo atidaryti nepavyko. Pabandykite iš naujo.' :
+      'Nepavyko išsiųsti. Patikrinkite internetą ir bandykite dar kartą.';
+    render();
+  }
+  function sendVideo() {
+    var f = S.file;
+    if (f.size > 50 * 1024 * 1024) { S.err = 'Vaizdo įrašas per didelis — nufilmuokite trumpiau (5 s).'; render(); return; }
+    var ext = /quicktime/.test(f.type) ? 'mov' : /webm/.test(f.type) ? 'webm' : 'mp4';
+    var path = K.event + '/' + S.st.event.round + '/' + K.uuid() + '.' + ext;
+    S.busy = true; S.err = ''; render();
+    K.videoThumb(f).then(function (t) {
+      if (t.dur && t.dur > 20) throw new Error('long');
+      return Promise.all([api.uploadAs(path, f, f.type || 'video/mp4'), api.upload(K.thumb(path), t.blob)]);
+    }).then(function () { return api.addVideo(S.name, S.phone, path); })
+      .then(function (r) {
+        if (r.error) throw new Error(r.error);
+        if (S.prev) URL.revokeObjectURL(S.prev);
+        S.file = null; S.prev = null; S.change = false; S.busy = false;
+        return refresh(true);
+      }).catch(function (e) { if (e.message === 'long') { S.busy = false; S.err = 'Per ilgas — ne daugiau 15 sekundžių.'; render(); } else fail(e); });
   }
   function shoot() {
-    var ev = S.st.event, out = [h('p', { class: 'kicker' }, 'Užduotis')];
-    if (ev.task) out.push(h('div', { class: 'task' }, ev.task));
-    out.push(h('input', { type: 'file', accept: 'image/*', capture: 'environment', id: 'cam', class: 'hid', onchange: onFile }));
-    out.push(h('input', { type: 'file', accept: 'image/*', id: 'gal', class: 'hid', onchange: onFile }));
+    var ev = S.st.event, out = [h('p', { class: 'kicker' }, 'Užduotis')], vt = K.isVideoTask(ev);
+    if (ev.task) out.push(h('div', { class: 'task' }, ev.task.replace(/^VIDEO:\s*/i, '')));
+    out.push(h('input', { type: 'file', accept: vt ? 'video/*' : 'image/*', capture: 'environment', id: 'cam', class: 'hid', onchange: onFile }));
+    out.push(h('input', { type: 'file', accept: vt ? 'video/*' : 'image/*', id: 'gal', class: 'hid', onchange: onFile }));
     if (S.prev) {
-      out.push(h('img', { src: S.prev, class: 'shot', alt: '' }));
+      out.push(vt || /^video\//.test(S.file && S.file.type || '') ? h('video', { src: S.prev, class: 'shot', controls: true, playsinline: true, muted: true }) : h('img', { src: S.prev, class: 'shot', alt: '' }));
       out.push(h('button', { class: 'btn', disabled: S.busy, onclick: send }, S.busy ? 'Siunčiama…' : 'Siųsti'));
-      if (!S.busy) out.push(h('label', { class: 'btn ghost', for: 'cam' }, 'Fotografuoti iš naujo'));
+      if (!S.busy) out.push(h('label', { class: 'btn ghost', for: 'cam' }, vt ? 'Filmuoti iš naujo' : 'Fotografuoti iš naujo'));
     } else {
-      out.push(h('label', { class: 'btn big', for: 'cam' }, '📷 Fotografuoti'));
+      out.push(h('label', { class: 'btn big', for: 'cam' }, vt ? '🎥 Filmuoti (5 s)' : '📷 Fotografuoti'));
       out.push(h('label', { class: 'btn ghost', for: 'gal' }, 'Pasirinkti iš galerijos'));
-      if (S.change) out.push(h('button', { class: 'btn ghost', onclick: function () { S.change = false; render(); } }, 'Palikti ankstesnį kadrą'));
+      if (S.change) out.push(h('button', { class: 'btn ghost', onclick: function () { S.change = false; render(); } }, 'Palikti ankstesnį'));
     }
     if (S.err) out.push(h('p', { class: 'err' }, S.err));
     return out;
