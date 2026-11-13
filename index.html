@@ -104,6 +104,12 @@ input.t{background:#fff;color:#141412;border:0;border-radius:14px;padding:16px 1
 .tile.pop{animation:kd_pop .7s cubic-bezier(.2,1.5,.4,1) both}
 @keyframes kd_pop{from{transform:scale(.3) rotate(-8deg);opacity:0}to{transform:none;opacity:1}}
 .cap.duel{background:#C0392B!important;color:#fff!important;font-size:3vh!important}
+.dwrap{position:relative;border-radius:16px;overflow:hidden;background:#000;margin:8px 0}
+.dwrap video{display:block;width:100%;max-height:62vh;object-fit:cover}
+.dcount{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:900 30vw/1 Oswald,Arial,sans-serif;color:#FFE34F;text-shadow:0 4px 30px #000}
+.dflash{position:absolute;inset:0;background:#fff;opacity:0;transition:opacity .25s;pointer-events:none}
+.dov{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font:900 60vh/1 Oswald,Arial,sans-serif;color:#FFE34F;background:#000a;z-index:50;text-shadow:0 6px 40px #000}
+.dov.flash{background:#fff;color:#C0392B;font-size:40vh}
 </style>
 </head>
 <body>

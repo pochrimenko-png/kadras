@@ -233,5 +233,19 @@
     return Promise.resolve(r);
   };
 
+  // ---------- фотодуэль: общий отсчёт ----------
+  real.duelState = function () { return rpc('kadras_duel_state', { p_event: K.event }); };
+  real.duelStart = function (pin, sec) { return rpc('kadras_duel_start', { p_event: K.event, p_pin: pin, p_seconds: sec || 6 }); };
+  demo.duelState = function () { var d = load(); return Promise.resolve({ duel_at: d.duel_at || null, now: new Date().toISOString() }); };
+  demo.duelStart = function () { var d = load(); d.duel_at = new Date(Date.now() + 6000).toISOString(); save(d); return Promise.resolve({ ok: true, duel_at: d.duel_at, now: new Date().toISOString() }); };
+  K.isDuel = function (ev) { return ev && ev.phase === 'collect' && /^DVIKOVA/i.test(ev.task || ''); };
+  // Отсчёт: сколько мс до старта по часам сервера (поправка на разницу часов телефона и сервера).
+  K.duelLeft = function (ds) {
+    if (!ds || !ds.duel_at) return null;
+    var off = new Date(ds.now).getTime() - ds._got;
+    return new Date(ds.duel_at).getTime() - (Date.now() + off);
+  };
+  K.duelFetch = function () { return K.api.duelState().then(function (r) { r._got = Date.now(); return r; }); };
+
   K.api = K.demo ? demo : real;
 })();

@@ -2,7 +2,7 @@
 (function () {
   var K = window.K, h = K.h, api = K.api;
   if (K.role !== 'screen') return;
-  var S = { st: null, key: '', poll: null }, SEEN = {}, FIRST = false;
+  var S = { st: null, key: '', poll: null, ds: null }, SEEN = {}, FIRST = false;
 
   function qr(text) {
     var el = h('div', { class: 'qr' });
@@ -89,6 +89,23 @@
       h('div', { class: 'body' }, body)));
     layout();
     if (P.length) FIRST = true;
+    if (K.isDuel(e)) duelOverlay();
+  }
+  // Фотодуэль на большом экране: огромный отсчёт 5-4-3-2-1 и вспышка
+  var dtimer = null;
+  function duelOverlay() {
+    if (dtimer) return;
+    dtimer = setInterval(function () {
+      if (!S.st || !K.isDuel(S.st.event)) { clearInterval(dtimer); dtimer = null; var o = document.getElementById('dov'); if (o) o.remove(); return; }
+      K.duelFetch().then(function (ds) { S.ds = ds; dtick(); }).catch(function () {});
+    }, 900);
+  }
+  function dtick() {
+    var left = K.duelLeft(S.ds), o = document.getElementById('dov');
+    if (left === null || left < -1500) { if (o) o.remove(); return; }
+    if (!o) { o = h('div', { class: 'dov', id: 'dov' }); document.body.appendChild(o); }
+    if (left > 0) { o.textContent = String(Math.ceil(left / 1000)); o.className = 'dov'; setTimeout(dtick, Math.min(250, left)); }
+    else { o.textContent = '📸'; o.className = 'dov flash'; setTimeout(dtick, 400); }
   }
 
   function refresh() {

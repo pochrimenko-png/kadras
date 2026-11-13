@@ -94,6 +94,11 @@
       h('h1', null, 'Пульт · ' + (e.title || e.id)),
       S.err && h('p', { style: 'color:var(--red);font-weight:700' }, S.err),
       pollBox(),
+      /^DVIKOVA/i.test(e.task || '') && e.phase === 'collect' && h('div', { class: 'box' },
+        h('p', null, 'Фотодуэль: двое с открытой страницей нажали «Įjungti kamerą» → встали спиной к спине → жми старт. На «0» телефоны снимут сами.'),
+        h('div', { class: 'line' }, h('button', { class: 'on', style: 'font-size:22px;padding:18px 26px', onclick: function () {
+          api.duelStart(S.pin, 6).then(function (r) { if (r.error) { S.err = ERR[r.error] || ('Дуэль: ' + r.error); render(); } });
+        } }, '🔫 СТАРТ ДУЭЛИ (5…1)'))),
       h('div', { class: 'box' },
         h('p', null, 'Раунд ', h('b', null, String(e.round)), ' · сейчас: ', h('b', null, phName), ' · кадров в раунде: ', h('b', null, String(st.photos.length)),
           ' · проголосовало: ', h('b', null, String(st.voters)), ' · всего кадров: ' + st.total),

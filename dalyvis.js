@@ -6,7 +6,8 @@
   var S = {
     name: K.store.get('kadras_name' + K.sfx) || '', phone: K.store.get('kadras_phone' + K.sfx) || '',
     named: false, st: null, key: '', file: null, prev: null, busy: false, err: '', note: '', pick: null, change: false, revote: false, round: 0,
-    poll: null, pkey: '', psel: [], pother: '', pedit: false, perr: '', pseen: false
+    poll: null, pkey: '', psel: [], pother: '', pedit: false, perr: '', pseen: false,
+    dstream: null, dvideo: null, dstate: null, dshot: '', dmsg: '', dtimer: null
   };
   S.named = !!S.name;
 
@@ -217,6 +218,65 @@
       h('button', { class: 'btn ghost', onclick: function () { S.pedit = true; S.psel = (ps.mine.choices || []).slice(); S.pother = ps.mine.other || ''; render(); } }, 'Pakeisti atsakymą')];
   }
 
+  // ---------- фотодуэль: камера в странице, общий отсчёт, снимок сам ----------
+  function duelCam() {
+    if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) { S.dmsg = 'nocam'; render(); return; }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
+      .then(function (st) {
+        S.dstream = st;
+        var v = document.createElement('video'); v.playsInline = true; v.muted = true; v.autoplay = true; v.setAttribute('playsinline', ''); v.className = 'dcam';
+        v.srcObject = st; v.play().catch(function () {});
+        S.dvideo = v; S.dmsg = ''; render(); duelLoop();
+      }).catch(function () { S.dmsg = 'nocam'; render(); });
+  }
+  function duelLoop() {
+    if (S.dtimer) return;
+    S.dtimer = setInterval(function () {
+      var ev = S.st && S.st.event;
+      if (!K.isDuel(ev) || (S.st && S.st.my_photo)) { clearInterval(S.dtimer); S.dtimer = null; return; }
+      K.duelFetch().then(function (ds) { S.dstate = ds; tick(); }).catch(function () {});
+    }, 900);
+  }
+  function tick() {
+    var left = K.duelLeft(S.dstate), el = document.getElementById('dcount');
+    if (left === null || left < -4000) { if (el) el.textContent = ''; return; }
+    if (left > 0) {
+      if (el) el.textContent = String(Math.ceil(left / 1000));
+      setTimeout(tick, Math.min(250, left));
+    } else if (S.dshot !== S.dstate.duel_at) { S.dshot = S.dstate.duel_at; if (el) el.textContent = '📸'; snap(); }
+  }
+  function snap() {
+    var v = S.dvideo; if (!v || !v.videoWidth) { S.dmsg = 'Kamera dar nepasiruošusi.'; render(); return; }
+    var c = document.createElement('canvas'), s = Math.min(1, 1600 / Math.max(v.videoWidth, v.videoHeight));
+    c.width = Math.round(v.videoWidth * s); c.height = Math.round(v.videoHeight * s);
+    c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+    var flash = document.getElementById('dflash'); if (flash) { flash.style.opacity = 1; setTimeout(function () { flash.style.opacity = 0; }, 180); }
+    c.toBlob(function (b) {
+      if (!b) return;
+      S.file = b; if (S.prev) URL.revokeObjectURL(S.prev); S.prev = URL.createObjectURL(b);
+      send();
+    }, 'image/jpeg', 0.85);
+  }
+  function duelView() {
+    var out = [h('p', { class: 'kicker' }, 'Foto dvikova 🤠')];
+    if (S.dmsg === 'nocam') {
+      out.push(h('p', { class: 'mut' }, 'Kameros puslapyje įjungti nepavyko — fotografuokite įprastai.'));
+      return out.concat(shoot());
+    }
+    if (!S.dstream) {
+      out.push(h('h1', null, 'Pasiruoškite!'));
+      out.push(h('p', { class: 'mut' }, 'Įjunkite kamerą. Kai vedėjas paspaus „Startas“, bus 5-4-3-2-1 — ir telefonas nufotografuos pats.'));
+      out.push(h('button', { class: 'btn big', onclick: duelCam }, '📷 Įjungti kamerą'));
+      return out;
+    }
+    var wrap = h('div', { class: 'dwrap' }, h('div', { class: 'dcount', id: 'dcount' }, ''), h('div', { class: 'dflash', id: 'dflash' }));
+    wrap.insertBefore(S.dvideo, wrap.firstChild);
+    out.push(wrap);
+    out.push(h('p', { class: 'mut' }, S.busy ? 'Siunčiama…' : (S.dmsg || 'Laukite starto… Nusitaikykite į priešininką!')));
+    duelLoop(); setTimeout(tick, 50);
+    return out;
+  }
+
   function render(keepScroll) {
     var st = S.st, body, y = window.scrollY;
     var ps = S.poll;
@@ -227,7 +287,7 @@
     else if (st.error) body = [h('p', { class: 'err' }, 'Renginys nerastas. Nuskenuokite QR kodą dar kartą.')];
     else {
       var ph = st.event.phase;
-      body = ph === 'collect' ? (st.my_photo && !S.change ? sent() : shoot()) : ph === 'vote' ? vote() :
+      body = ph === 'collect' ? (st.my_photo && !S.change ? sent() : (K.isDuel(st.event) ? duelView() : shoot())) : ph === 'vote' ? vote() :
         (ph === 'results' || ph === 'reveal') ? results() : waiting();
       body.push(foot());
     }
