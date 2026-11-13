@@ -35,6 +35,7 @@
       else if (k === 'class') el.className = v;
       else if (k === 'style') el.style.cssText = v;
       else if (k === 'value') el.value = v;
+      else if (k === 'muted') { el.muted = true; el.defaultMuted = true; el.setAttribute('muted', ''); }
       else el.setAttribute(k, v === true ? '' : v);
     }
     for (i = 2; i < arguments.length; i++) {

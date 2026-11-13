@@ -135,7 +135,8 @@
         h('div', { class: 'line' },
           h('a', { href: link('ekranas'), target: '_blank' }, 'Открыть большой экран'), ' · ',
           h('a', { href: link(), target: '_blank' }, 'Страница участника')),
-        h('p', { style: 'word-break:break-all;color:var(--mut)' }, 'Адрес для зала: ' + K.guestUrl())),
+        h('p', { style: 'word-break:break-all;color:var(--mut)' }, 'Адрес для зала: ' + K.guestUrl()),
+        h('p', { style: 'color:var(--mut)' }, '🔊 Звук большого экрана: один раз щёлкни по экрану (жёлтая кнопка внизу справа). Клавиша M — выключить или включить, ↑ ↓ — громкость. Музыка сама меняется по этапам; пока зал снимает видео — молчит.')),
       h('div', { class: 'box' },
         h('p', null, 'Кадры раунда ' + e.round + ':'),
         st.photos.length ? h('div', { class: 'ph' }, st.photos.map(function (p) {
