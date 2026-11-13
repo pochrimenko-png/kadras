@@ -72,7 +72,8 @@
       var small = P.length > 12;
       var wall = h('div', { class: 'wall', id: 'wall' }, P.map(function (p) {
         var cap = null;
-        if (ph === 'reveal') cap = h('div', { class: 'cap' }, h('span', null, (p.author || '') + (p.phone ? ' · ' + p.phone : '')), h('b', null, String(p.votes || 0)));
+        if (/^DVIKOVA/i.test(e.task || '') && p.num === 1 && ph === 'collect') cap = h('div', { class: 'cap duel' }, h('span', null, '⚡ PIRMAS!'), h('b', null, '1'));
+        else if (ph === 'reveal') cap = h('div', { class: 'cap' }, h('span', null, (p.author || '') + (p.phone ? ' · ' + p.phone : '')), h('b', null, String(p.votes || 0)));
         else if (ph === 'results') cap = h('div', { class: 'cap' }, h('span', null, balsai(p.votes || 0)), h('b', null, String(p.votes || 0)));
         var fresh = !SEEN[p.id]; SEEN[p.id] = 1;
         return h('div', { class: 'tile' + (winners.indexOf(p) >= 0 ? ' win' : '') + (fresh && FIRST ? ' pop' : '') },

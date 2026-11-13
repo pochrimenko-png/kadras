@@ -13,7 +13,8 @@
     ['Место и ракурс', 'Tas pats žmogus – trys kampai: iš viršaus, akių lygyje, iš apačios. Siųskite geriausią.'],
     ['Момент', 'Nufotografuokite, kaip jūsų kaimynas nusijuokia. Prašyti nusijuokti – draudžiama.'],
     ['Общая сцена', 'Vienas įvykis, vienas dublis. Siųskite savo kadrą.'],
-    ['Слепой тест №2', 'Jūsų geriausias šios dienos kadras.']
+    ['Слепой тест №2', 'Jūsų geriausias šios dienos kadras.'],
+    ['Фотодуэль', 'DVIKOVA! Nugara į nugarą, 3 žingsniai, atsisukite ir fotografuokite. Kas pirmas?']
   ];
   var ERR = { wrong_pin: 'Неверный код.', locked: 'Слишком много попыток — подождите 30 секунд.', bad_pin: 'Код — от 4 знаков.', no_event: 'Событие не найдено: ' + K.event };
 
