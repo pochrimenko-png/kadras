@@ -4,7 +4,8 @@
   var K = window.K;
   if (!K || K.role !== 'screen') return;
   var AC = window.AudioContext || window.webkitAudioContext;
-  var G = K.snd = { on: false, mute: false, vol: parseFloat(K.store.get('kadras_vol')) || 0.7, hold: 0 };
+  var EMB = false; try { EMB = window.top !== window; } catch (e) { EMB = true; } // страница открыта окном внутри презентации
+  var G = K.snd = { on: false, mute: false, emb: EMB, vol: parseFloat(K.store.get('kadras_vol')) || 0.7, hold: 0 };
   var ctx = null, master = null, buf = {}, cur = { name: '', src: null, g: null }, want = { name: '', lvl: 1 };
   var LOOPS = { a: 32 * 60 / 92, b: 32 * 60 / 108, c: 32 * 60 / 116 }, PRE = 0.5, BED = 0.5;
 
@@ -85,19 +86,19 @@
   // кнопка в углу экрана
   var b = document.createElement('button'); b.id = 'snd';
   function draw() {
-    b.className = 'snd' + (G.on ? ' on' : '');
-    b.textContent = !AC ? '' : !G.on ? '🔇 Spustelėkite ekraną — įsijungs garsas' : G.mute ? '🔇' : '🔊';
+    b.className = 'snd' + (G.on || EMB ? ' on' : '');
+    b.textContent = !AC ? '' : !G.on ? (EMB ? '🔇' : '🔇 Spustelėkite ekraną — įsijungs garsas') : G.mute ? '🔇' : '🔊';
   }
   draw();
   document.addEventListener('DOMContentLoaded', function () { document.body.appendChild(b); });
   if (document.body) document.body.appendChild(b);
   document.addEventListener('click', function (ev) {
-    if (!G.on) return unlock();
+    if (!G.on) { if (!EMB || ev.target === b) unlock(); return; }
     if (ctx.state === 'suspended') ctx.resume();
     if (ev.target === b) { G.mute = !G.mute; setMaster(); draw(); }
   });
   document.addEventListener('keydown', function (ev) {
-    if (!G.on) { if (ev.key.length === 1 || ev.key === 'Enter') unlock(); return; }
+    if (!G.on) { if (!EMB && (ev.key.length === 1 || ev.key === 'Enter')) unlock(); return; }
     if (ev.key === 'm' || ev.key === 'M' || ev.key === 'ь' || ev.key === 'Ь') { G.mute = !G.mute; setMaster(); draw(); }
     else if (ev.key === 'ArrowUp' || ev.key === 'ArrowDown') {
       G.vol = Math.max(0.1, Math.min(1, G.vol + (ev.key === 'ArrowUp' ? 0.1 : -0.1)));

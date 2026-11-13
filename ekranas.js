@@ -72,6 +72,7 @@
     var wait = h('div', { class: 'filmwait', id: 'filmwait' }, h('p', { class: 'kicker' }, e0.title || 'Kadras'), h('h1', null, 'Mūsų salės filmas 🎬'), h('p', { id: 'filmn' }, 'Ruošiama…'));
     K.mount(h('div', { class: 'film', id: 'film' }, bg, v, cap, btn, wait));
     v.volume = 0.85;
+    if (K.snd && K.snd.emb && !K.snd.on) v.muted = true; // окно внутри презентации молчит: звук идёт с экрана зала
     function credits() {
       film.on = false;
       K.mount(h('div', { class: 'film credits', id: 'film' }, h('p', { class: 'kicker' }, e0.title || 'Kadras'), h('h1', null, 'Mūsų salės filmas 🎬'),
