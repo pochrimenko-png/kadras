@@ -53,7 +53,9 @@
     if (film.key === key && document.getElementById('film')) return;
     film.key = key; film.i = 0;
     var v = h('video', { id: 'filmv', playsinline: true, class: 'filmv' }), cap = h('div', { class: 'filmcap', id: 'filmcap' }), btn = h('button', { class: 'filmbtn', id: 'filmbtn' }, '▶ Paleisti filmą');
-    K.mount(h('div', { class: 'film', id: 'film' }, v, cap, btn));
+    // фон: то же видео, размытое и растянутое — вертикальный кадр занимает весь экран
+    var bg = h('video', { id: 'filmbg', playsinline: true, class: 'filmbg' }); bg.muted = true;
+    K.mount(h('div', { class: 'film', id: 'film' }, bg, v, cap, btn));
     function credits() {
       K.mount(h('div', { class: 'film credits' }, h('p', { class: 'kicker' }, e0.title || 'Kadras'), h('h1', null, 'Mūsų salės filmas 🎬'),
         h('p', null, 'Filmavo: ' + V.map(function (p) { return p.author || ('Nr. ' + p.num); }).join(' · '))));
@@ -61,7 +63,8 @@
     var e0 = st.event;
     function play(i) {
       if (i >= V.length) return credits();
-      film.i = i; v.src = api.url(V[i].path); cap.textContent = 'Nr. ' + V[i].num + (V[i].author ? ' · ' + V[i].author : '');
+      film.i = i; v.src = api.url(V[i].path); bg.src = v.src; bg.play().catch(function () {});
+      cap.textContent = 'Nr. ' + V[i].num + (V[i].author ? ' · ' + V[i].author : '') + '   ' + (i + 1) + ' / ' + V.length;
       var pr = v.play(); if (pr && pr.catch) pr.catch(function () { v.muted = true; v.play().catch(function () {}); btn.textContent = '🔊 Įjungti garsą'; btn.style.display = 'block'; });
     }
     v.onended = function () { play(film.i + 1); };
