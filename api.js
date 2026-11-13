@@ -135,8 +135,9 @@
         return { id: p.id, num: p.num, path: p.path, mine: p.device === dev, author: names ? p.author : null, phone: names ? p.phone : null, votes: votes ? count(d, p.id) : null };
       });
       d.photos.forEach(function (p) { if (p.round === e.round && p.device === dev) mine = { id: p.id, num: p.num, path: p.path }; });
-      d.votes.forEach(function (v) { if (v.round === e.round && v.device === dev) my = v.photo; });
-      return Promise.resolve({ event: e, photos: photos, my_photo: mine, my_vote: my, voters: d.votes.filter(function (v) { return v.round === e.round; }).length });
+      var mv = [];
+      d.votes.forEach(function (v) { if (v.round === e.round && v.device === dev) { my = v.photo; mv.push(v.photo); } });
+      return Promise.resolve({ event: e, photos: photos, my_photo: mine, my_vote: my, my_votes: mv, voters: d.votes.filter(function (v) { return v.round === e.round; }).length });
     },
     addPhoto: function (author, phone, path) {
       var d = load(), e = d.event;
@@ -159,10 +160,14 @@
       var ph = d.photos.filter(function (p) { return p.id === id && p.round === e.round && !p.hidden; })[0];
       if (!ph) return Promise.resolve({ error: 'no_photo' });
       if (ph.device === K.device) return Promise.resolve({ error: 'own' });
-      d.votes = d.votes.filter(function (v) { return !(v.round === e.round && v.device === K.device); });
-      d.votes.push({ round: e.round, device: K.device, photo: id });
+      var had = d.votes.some(function (v) { return v.round === e.round && v.device === K.device && v.photo === id; });
+      if (had) d.votes = d.votes.filter(function (v) { return !(v.round === e.round && v.device === K.device && v.photo === id); });
+      else {
+        if (d.votes.filter(function (v) { return v.round === e.round && v.device === K.device; }).length >= 3) return Promise.resolve({ error: 'limit' });
+        d.votes.push({ round: e.round, device: K.device, photo: id });
+      }
       save(d);
-      return Promise.resolve({ ok: true, num: ph.num });
+      return Promise.resolve({ ok: true, num: ph.num, on: !had });
     },
     host: function (pin, action, arg) {
       var d = load(), e = d.event; arg = arg || {};
@@ -201,7 +206,7 @@
   };
 
   // ---------- опрос на входе ----------
-  K.POLL = { q: 'Kam jums naujas telefonas?', sub: 'Pasirinkite iki 3 atsakymų',
+  K.POLL = { q: 'Kam jums naujas telefonas?', sub: 'Galite pasirinkti kelis atsakymus',
     opts: ['😩 Senas / lėtas', '🔋 Baterija nebeišlaiko', '📷 Prasta kamera', '🎬 Noriu gražiau filmuoti', '💾 Nebėra vietos nuotraukoms',
       '📱 Noriu vesti tinklaraštį', '👀 Visi turi – ir man reikia', '✨ Noriu naujo dizaino', '☕ Man nereikia, atėjau dėl kavos', '✍️ Savo variantas'] };
   real.pollState = function (dev) { return rpc('kadras_poll_state', { p_event: K.event, p_device: dev || '' }); };

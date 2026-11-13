@@ -110,45 +110,31 @@
     if (m) { out.push(h('p', { class: 'mut' }, 'Jūsų kadras – Nr. ' + m.num)); out.push(img(m.path, 'shot', true)); }
     return out;
   }
-  function doVote() {
-    if (S.busy || !S.pick) return;
-    S.busy = true; S.err = ''; render();
-    api.vote(S.pick).then(function (r) {
+  // Голос — «сердечки»: до 3 на человека, повторное нажатие снимает.
+  function toggleHeart(p) {
+    if (S.busy) return;
+    if (p.mine) { S.note = 'Tai jūsų kadras – už savo balsuoti negalima.'; render(true); return; }
+    S.busy = true; S.note = ''; render(true);
+    api.vote(p.id).then(function (r) {
       S.busy = false;
-      if (r.error) { S.err = r.error === 'own' ? 'Tai jūsų kadras – už savo balsuoti negalima.' : 'Balsavimas jau baigtas.'; render(); return; }
-      S.revote = false; S.pick = null;
+      if (r.error) S.note = r.error === 'limit' ? 'Daugiausia 3 širdelės. Nuimkite vieną, kad atiduotumėte kitam.' : r.error === 'own' ? 'Tai jūsų kadras – už savo balsuoti negalima.' : 'Balsavimas jau baigtas.';
       return refresh(true);
-    }).catch(function () { S.busy = false; S.err = 'Nepavyko. Patikrinkite internetą ir bandykite dar kartą.'; render(); });
+    }).catch(function () { S.busy = false; S.note = 'Nepavyko. Patikrinkite internetą.'; render(true); });
   }
   function vote() {
-    var st = S.st, voted = null, picked = null;
-    st.photos.forEach(function (p) { if (p.id === st.my_vote) voted = p; if (p.id === S.pick) picked = p; });
-    if (voted && !S.revote) {
-      return [
-        h('p', { class: 'ok' }, 'Ačiū! Jūsų balsas – kadrui Nr. ' + voted.num),
-        img(voted.path, 'shot', true),
-        h('button', { class: 'btn ghost', onclick: function () { S.revote = true; S.pick = null; render(); } }, 'Pakeisti balsą')
-      ];
-    }
+    var st = S.st, my = st.my_votes || (st.my_vote ? [st.my_vote] : []);
     if (!st.photos.length) return [h('h1', null, 'Kadrų dar nėra.')];
     var cells = st.photos.map(function (p) {
-      var sel = p.id === S.pick;
-      return h('div', {
-        class: 'cell' + (sel ? ' sel' : '') + (p.mine ? ' own' : ''),
-        onclick: function () {
-          if (p.mine) { S.note = 'Tai jūsų kadras – už savo balsuoti negalima.'; S.pick = null; }
-          else { S.note = ''; S.pick = sel ? null : p.id; }
-          render(true);
-        }
-      }, img(p.path, '', !sel), h('span', { class: 'n' }, String(p.num)), p.mine && h('span', { class: 'tag' }, 'Jūsų kadras'));
+      var on = my.indexOf(p.id) >= 0;
+      return h('div', { class: 'cell' + (on ? ' sel' : '') + (p.mine ? ' own' : ''), onclick: function () { toggleHeart(p); } },
+        img(p.path, '', true), h('span', { class: 'n' }, String(p.num)),
+        p.mine ? h('span', { class: 'tag' }, 'Jūsų kadras') : h('span', { class: 'heart' + (on ? ' on' : '') }, on ? '❤️' : '🤍'));
     });
     return [
-      h('h1', null, 'Kuris kadras geriausias?'),
-      h('p', { class: 'mut' }, 'Palieskite kadrą – jis padidės. Tada spauskite mygtuką apačioje.'),
+      h('h1', null, 'Kurie kadrai patinka?'),
+      h('p', { class: 'mut' }, 'Palieskite kadrą – uždėsite širdelę. Iki 3 širdelių. ' + '❤️'.repeat(my.length) + '🤍'.repeat(Math.max(0, 3 - my.length))),
       h('div', { class: 'grid' }, cells),
-      (S.note || S.err) && h('p', { class: 'err' }, S.note || S.err),
-      h('div', { class: 'stick' }, h('button', { class: 'btn', disabled: !picked || S.busy, onclick: doVote },
-        picked ? 'Balsuoti už Nr. ' + picked.num : 'Pasirinkite kadrą'))
+      S.note && h('p', { class: 'err' }, S.note)
     ];
   }
   function results() {
@@ -190,8 +176,7 @@
       return h('button', { class: 'popt' + (on ? ' on' : ''), onclick: function () {
         S.perr = '';
         if (on) S.psel = S.psel.filter(function (x) { return x !== n; });
-        else if (S.psel.length < 3) S.psel.push(n);
-        else S.perr = 'Daugiausia 3 atsakymai.';
+        else S.psel.push(n);
         render(true);
       } }, o);
     })));
@@ -300,7 +285,7 @@
     if (!st || st.error) return 'x';
     var e = st.event, k = [e.phase, e.round];
     if (e.phase === 'collect') k.push(e.task, st.my_photo && st.my_photo.path);
-    else if (e.phase === 'vote') k.push(st.my_vote, st.photos.map(function (p) { return p.id; }).join());
+    else if (e.phase === 'vote') k.push(JSON.stringify(st.my_votes || st.my_vote), st.photos.map(function (p) { return p.id; }).join());
     else if (e.phase === 'results' || e.phase === 'reveal') k.push(JSON.stringify(st.photos));
     else k.push(st.my_photo && st.my_photo.path);
     return k.join('|');

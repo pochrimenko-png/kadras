@@ -55,7 +55,7 @@
     P.forEach(function (p) { max = Math.max(max, p.votes || 0); total += p.votes || 0; });
     var winners = votes && max > 0 ? P.filter(function (p) { return (p.votes || 0) === max; }) : [];
 
-    var title = ph === 'collect' ? (e.task || 'Siųskite savo kadrą') : ph === 'vote' ? 'Kuris kadras geriausias? Balsuokite telefone' :
+    var title = ph === 'collect' ? (e.task || 'Siųskite savo kadrą') : ph === 'vote' ? 'Kurie kadrai patinka? Širdelės — telefone ❤️' :
       ph === 'results' ? 'Rezultatai' : ph === 'reveal' ? (winners.length ? (winners.length > 1 ? 'Nugalėtojai – Nr. ' : 'Nugalėtojas – Nr. ') + winners.map(function (p) { return p.num + (p.author ? ' · ' + p.author : ''); }).join(', Nr. ') : 'Kieno kadras?') :
       (e.title || 'Kadras');
     var cnt = ph === 'vote' ? 'Balsavo: ' + st.voters : votes ? 'Balsų: ' + total : 'Kadrų: ' + P.length;
