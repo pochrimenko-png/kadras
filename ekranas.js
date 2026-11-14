@@ -133,6 +133,34 @@
     SND.id = id; SND.n = P.length;
   }
 
+  // «Свет»: слева кадры лицом к окну (шаг 1), справа спиной к окну (шаг 2)
+  function lightScreen(st) {
+    var e = st.event, P = st.photos.filter(function (p) { return !p.hidden; });
+    var A = P.filter(function (p) { return !K.isL2Photo(p); });
+    var B = P.filter(function (p) { return K.isL2Photo(p); });
+    var two = K.isLight2(e), res = e.phase !== 'collect';
+    function col(list, cls, head, sub) {
+      var w = h('div', { class: 'lwall' }, list.map(function (p) {
+        var fresh = !SEEN[p.id]; SEEN[p.id] = 1;
+        return h('div', { class: 'tile' + (fresh && FIRST ? ' pop' : '') }, h('img', { src: api.url(list.length > 9 ? K.thumb(p.path) : p.path), alt: '' }));
+      }));
+      return h('div', { class: 'lcol ' + cls }, h('div', { class: 'lhd' }, h('b', null, head), h('span', null, sub + ' · ' + list.length)), w);
+    }
+    K.mount(h('div', { class: 'screen light' },
+      h('header', null, h('div', null, h('p', { class: 'kicker' }, (e.title || 'Kadras') + ' · Šviesa'),
+        h('h1', null, res ? 'Ta pati vieta. Tas pats telefonas.' : two ? 'O dabar — nugara į langą! 🌑' : 'Nufotografuokite kaimyną veidu į langą ☀️'))),
+      h('div', { class: 'body lbody' },
+        col(A, 'la', '☀️ Veidu į langą', 'šviesa į veidą'),
+        (two || res) ? col(B, 'lb', '🌑 Nugara į langą', 'šviesa už nugaros') : h('div', { class: 'lcol lb wait' }, h('div', { class: 'lhd' }, h('b', null, '🌑 …'), h('span', null, 'antras kadras — po akimirkos'))),
+        !res && h('div', { class: 'join' }, qr(K.guestUrl()), h('p', { class: 'adr' }, adr())))));
+    FIRST = true;
+    setTimeout(function () { document.querySelectorAll('.lwall').forEach(lightLayout); }, 0);
+  }
+  function lightLayout(w) {
+    var n = w.children.length || 1, W = w.clientWidth, H = w.clientHeight, best = 1, size = 0, c, r, s;
+    for (c = 1; c <= n; c++) { r = Math.ceil(n / c); s = Math.min(W / c, (H / r) * 4 / 3); if (s > size) { size = s; best = c; } }
+    w.style.gridTemplateColumns = 'repeat(' + best + ',1fr)'; w.style.gridTemplateRows = 'repeat(' + Math.ceil(n / best) + ',1fr)';
+  }
   function render() { draw(); sound(); }
   function draw() {
     var st = S.st;
@@ -142,6 +170,7 @@
     if (!st) return K.mount(h('div', { class: 'screen' }, h('h1', null, 'Jungiamasi…')));
     if (st.error) return K.mount(h('div', { class: 'screen' }, h('h1', null, 'Renginys nerastas: ' + K.event)));
     var e = st.event, ph = e.phase, P = st.photos, votes = ph === 'results' || ph === 'reveal';
+    if (K.isLight(e) && (ph === 'collect' || ph === 'results' || ph === 'vote')) return lightScreen(st);
     var max = 0, total = 0;
     P.forEach(function (p) { max = Math.max(max, p.votes || 0); total += p.votes || 0; });
     var winners = votes && max > 0 ? P.filter(function (p) { return (p.votes || 0) === max; }) : [];

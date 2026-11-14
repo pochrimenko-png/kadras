@@ -54,6 +54,11 @@
   };
   K.thumb = function (path) { return String(path).replace(/\.(jpg|mp4|mov|webm)$/, '_s.jpg'); };
   K.isVideoTask = function (ev) { return ev && /^VIDEO/i.test(ev.task || ''); };
+  // упражнение «Свет»: ŠVIESA 1 / ŠVIESA 2 в одном раунде; кадры шага 2 помечены в имени файла (начало «dddd2222»): база отдаёт путь во всех этапах
+  K.isLight = function (ev) { return ev && /^(Š|S)VIESA\s*[12]/i.test(ev.task || ''); };
+  K.isLight2 = function (ev) { return ev && /^(Š|S)VIESA\s*2/i.test(ev.task || ''); };
+  K.LMARK = 'dddd2222';
+  K.isL2Photo = function (p) { return String(p.path || '').split('/').pop().slice(0, 8) === K.LMARK; };
   K.isVideo = function (path) { return /\.(mp4|mov|webm)$/i.test(String(path)); };
   K.guestUrl = function () {
     var p = [];

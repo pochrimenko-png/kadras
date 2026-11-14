@@ -6,10 +6,13 @@
   var S = { pin: '', st: null, key: '', err: '', busy: false, task: null, poll: null };
   try { S.pin = sessionStorage.getItem(PK) || ''; } catch (e) {}
 
+  var L1 = 'ŠVIESA 1: nufotografuokite šalia sėdintį žmogų veidu į langą.', L2 = 'ŠVIESA 2: dabar — tas pats žmogus nugara į langą.';
+  // не перерисовывать пульт, пока палец на экране (иначе кнопка «не нажимается»)
+  var TOUCH = 0; ['pointerdown', 'touchstart'].forEach(function (t) { document.addEventListener(t, function () { TOUCH = Date.now(); }, true); });
+  function busyFinger() { return Date.now() - TOUCH < 1200; }
   var PHASES = [['wait', 'Пауза'], ['collect', 'Сбор кадров'], ['vote', 'Голосование'], ['results', 'Результаты'], ['reveal', 'Раскрыть авторов']];
   var PRESETS = [
     ['Пробный кадр', 'Bandomasis kadras: nufotografuokite bet ką šalia savęs ir siųskite.'],
-    ['Свет', 'Nufotografuokite šalia sėdintį žmogų veidu į langą. Siųskite geriausią kadrą.'],
     ['Место и ракурс', 'Tas pats žmogus – trys kampai: iš viršaus, akių lygyje, iš apačios. Siųskite geriausią.'],
     ['Момент', 'Nufotografuokite, kaip jūsų kaimynas nusijuokia. Prašyti nusijuokti – draudžiama.'],
     ['Общая сцена', 'Vienas įvykis, vienas dublis. Siųskite savo kadrą.'],
@@ -121,6 +124,13 @@
           return h('button', { class: e.phase === p[0] ? 'on' : '', onclick: function () { call('phase', { phase: p[0] }); } }, p[1]);
         })),
         h('p', { style: 'color:var(--mut);font-size:14px' }, 'Сбор кадров — зал снимает и шлёт. Голосование — приём закрыт, на телефонах все кадры. Результаты — столбики без имён. Раскрыть авторов — имена, телефоны, победитель.')),
+      h('div', { class: 'box', style: 'border:3px solid var(--acc)' },
+        h('p', null, h('b', null, 'Свет — два шага, одной кнопкой каждый:')),
+        h('div', { class: 'line' },
+          h('button', { class: K.isLight(e) && !K.isLight2(e) ? 'on' : '', style: 'font-size:20px;padding:16px 20px', onclick: function () { S.task = null; call('round', { task: L1 }); } }, '☀️ Свет 1: лицом к окну (новый раунд)'),
+          h('button', { class: K.isLight2(e) ? 'on' : '', style: 'font-size:20px;padding:16px 20px', onclick: function () { S.task = null; call('task', { task: L2 }).then(function () { if (S.st && S.st.event.phase !== 'collect') call('phase', { phase: 'collect' }); }); } }, '🌑 Свет 2: спиной к окну'),
+          h('button', { style: 'font-size:20px;padding:16px 20px', onclick: function () { call('phase', { phase: 'results' }); } }, '📊 Результат: слева / справа')),
+        h('p', { style: 'color:var(--mut);font-size:14px' }, 'Свет 1 — все снимают соседа лицом к окну. Свет 2 — тот же раунд, второй кадр спиной к окну (первый не заменяется). Результат — на экране слева светлые, справа тёмные, без голосования.')),
       h('div', { class: 'box' },
         h('p', null, 'Задание (видят телефоны и экран):'), ta,
         h('div', { class: 'line' }, PRESETS.map(function (p) {
@@ -162,7 +172,7 @@
       if (r.error) return;
       var key = JSON.stringify(r);
       // не перерисовываем, пока ведущий печатает задание
-      if (key !== S.key && document.activeElement && document.activeElement.id !== 'task') { S.st = r; S.key = key; render(); }
+      if (key !== S.key && document.activeElement && document.activeElement.id !== 'task' && !busyFinger()) { S.st = r; S.key = key; render(); }
     });
   }, 3000);
 })();

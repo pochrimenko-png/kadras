@@ -59,13 +59,14 @@
     if (S.prev) URL.revokeObjectURL(S.prev);
     S.file = f; S.prev = URL.createObjectURL(f); S.err = ''; render();
   }
-  var DAUG = K.q.has('daug'); // ссылка ведущего ?daug — много селфи с одного телефона (14.11)
+  var BASE2 = false, DAUG = K.q.has('daug'); // ссылка ведущего ?daug — много селфи с одного телефона (14.11)
   function send() {
     if (S.busy || !S.file) return;
     var vid = /^video\//.test(S.file.type || '') || K.isVideoTask(S.st.event) && !/^image\//.test(S.file.type || '');
     if (vid) return sendVideo();
     var path = K.event + '/' + S.st.event.round + '/' + K.uuid() + '.jpg';
     if (DAUG) K.device = K.uuid(); // режим ведущего «?daug»: каждый кадр — как от нового телефона, прежние не заменяются
+    if (K.isLight2(S.st.event)) path = path.replace(/\/([0-9a-f-]{36})\.jpg$/, function (m, u) { return '/' + K.LMARK + u.slice(8) + '.jpg'; }); // шаг 2 «Света» — метка в имени файла
     S.busy = true; S.err = ''; render();
     Promise.all([K.shrink(S.file, 1600, 0.82), K.shrink(S.file, 480, 0.7)])
       .then(function (b) { return Promise.all([api.upload(path, b[0]), api.upload(K.thumb(path), b[1])]); })
@@ -415,6 +416,8 @@
       var key = keyOf(st);
       if (st.event && st.event.round !== S.round) { S.round = st.event.round; S.file = null; S.prev = null; S.change = false; S.pick = null; S.revote = false; S.err = ''; S.note = ''; }
       S.st = st;
+      // шаг 2 «Света»: тот же телефон шлёт второй кадр отдельно — свой номер устройства «…-2», первый кадр не заменяется
+      if (st.event && K.isLight2(st.event) && !BASE2) { BASE2 = true; K.device = K.device.slice(0, 60) + '-2'; return refresh(true); }
       if (force || key !== S.key || pchanged) { S.key = key; if (!(document.activeElement && document.activeElement.id === 'pother') || force) render(!force); }
     });
   }
