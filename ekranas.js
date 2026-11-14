@@ -237,6 +237,21 @@
   }
 
   window.addEventListener('resize', layout);
+  // Весь экран: клавиша F (или А в русской раскладке), двойной щелчок или кнопка ⛶ внизу слева (14.11: «экран зала не делается фуллскрин»)
+  function fs() {
+    var d = document, el = d.documentElement;
+    var on = d.fullscreenElement || d.webkitFullscreenElement;
+    if (on) { (d.exitFullscreen || d.webkitExitFullscreen).call(d); return; }
+    var f = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (f) { var r = f.call(el); if (r && r.catch) r.catch(function () {}); }
+  }
+  document.addEventListener('keydown', function (ev) { if (/^[fFаА]$/.test(ev.key) || ev.key === 'F11') { if (ev.key === 'F11') ev.preventDefault(); fs(); } });
+  document.addEventListener('dblclick', fs);
+  var fb = document.createElement('button'); fb.className = 'fsb'; fb.textContent = '⛶'; fb.title = 'Visas ekranas (F)';
+  fb.onclick = function (e) { e.stopPropagation(); fs(); };
+  function fbShow() { fb.style.display = (document.fullscreenElement || document.webkitFullscreenElement) ? 'none' : 'block'; }
+  document.addEventListener('fullscreenchange', fbShow); document.addEventListener('webkitfullscreenchange', fbShow);
+  if (document.body) document.body.appendChild(fb); else document.addEventListener('DOMContentLoaded', function () { document.body.appendChild(fb); });
   render();
   var s = document.createElement('script');
   s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
