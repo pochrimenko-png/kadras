@@ -290,7 +290,12 @@
 
   // ---------- эстафета ----------
   function relayJoin() {
-    if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) || !window.MediaRecorder) { S.rmsg = 'Šis telefonas negali įrašyti puslapyje — stebėkite ekraną 🙂'; render(); return; }
+    // старые телефоны (iPhone 6 и др., нет записи в браузере): тоже получают номер, а в свою очередь снимают обычной камерой телефона
+    if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) || !window.MediaRecorder) {
+      S.rnative = true; S.rmsg = '';
+      return api.relayJoin(S.name).then(function (r) { if (r && r.error) S.rmsg = r.error === 'closed' ? 'Priėmimas baigtas.' : 'Nepavyko prisijungti.'; render(); relayLoop(); })
+        .catch(function () { S.rmsg = 'Nepavyko prisijungti — patikrinkite internetą.'; render(); });
+    }
     navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: true })
       .then(function (st) {
         S.rstream = st;
@@ -326,15 +331,18 @@
       big.textContent = left <= 3 ? String(left) : ''; big.className = 'rbig' + (left <= 3 ? ' soon' : '');
       if (left <= 3 && S.rvib !== key + left) { S.rvib = key + left; try { if (navigator.vibrate) navigator.vibrate(left === 1 ? 300 : 120); } catch (e) {} }
       if (sub) sub.textContent = 'Jūsų eilė: Nr. ' + S.rs.slot + ' · po ' + left + ' s';
-      if (w.a - now < 1200 && S.rdone !== key && !S.rrec) setTimeout(function () { record(key, w); }, Math.max(0, w.a - K.relayNow(S.rs)));
+      if (S.rnative) { nativeBtn(left <= 3, key); }
+      else if (w.a - now < 1200 && S.rdone !== key && !S.rrec) setTimeout(function () { record(key, w); }, Math.max(0, w.a - K.relayNow(S.rs)));
       setTimeout(rtick, 250);
     } else if (now < w.b) {
       big.textContent = '● ' + Math.ceil((w.b - now) / 1000); big.className = 'rbig rec';
-      if (sub) sub.textContent = 'FILMUOJATE! 🎬';
-      if (S.rdone !== key && !S.rrec) record(key, w);
+      if (sub) sub.textContent = S.rnative ? 'JŪSŲ EILĖ! Spauskite ir filmuokite 5 s 🎬' : 'FILMUOJATE! 🎬';
+      if (S.rnative) nativeBtn(true, key); else if (S.rdone !== key && !S.rrec) record(key, w);
       setTimeout(rtick, 250);
     } else {
-      big.textContent = ''; if (sub && !S.rrec) sub.textContent = S.rdone === key ? 'Ačiū! Jūsų 5 sekundės — filme 🎬' : 'Jūsų eilė praėjo.';
+      big.textContent = '';
+      if (S.rnative && S.rdone !== key) { nativeBtn(true, key); if (sub && !S.rrec) sub.textContent = 'Jūsų eilė! Filmuokite 5 s ir siųskite 🎬'; return; }
+      if (sub && !S.rrec) sub.textContent = S.rdone === key ? 'Ačiū! Jūsų 5 sekundės — filme 🎬' : 'Jūsų eilė praėjo.';
     }
   }
   function record(key, w) {
@@ -356,17 +364,36 @@
     rec.start(500);
     setTimeout(function () { try { rec.stop(); } catch (e) {} }, Math.max(1000, w.b - K.relayNow(S.rs)));
   }
+  function nativeBtn(on, key) {
+    var b = document.getElementById('rnat'); if (!b) return;
+    b.style.display = on && S.rdone !== key ? 'flex' : 'none'; S.rkey = key;
+  }
+  function nativeSend(ev) {
+    var f = ev.target.files && ev.target.files[0]; ev.target.value = '';
+    if (!f || S.rrec) return;
+    var key = S.rkey, sub = document.getElementById('rsub');
+    var ext = /quicktime/.test(f.type) ? 'mov' : /webm/.test(f.type) ? 'webm' : 'mp4', path = K.event + '/' + S.st.event.round + '/' + K.uuid() + '.' + ext;
+    S.rrec = true; if (sub) sub.textContent = 'Siunčiama…'; nativeBtn(false, key);
+    K.videoThumb(f).then(function (t) { return Promise.all([api.uploadAs(path, f, f.type || 'video/mp4'), api.upload(K.thumb(path), t.blob)]); })
+      .then(function () { return api.addRelay(S.name, S.phone, path); })
+      .then(function (r) { S.rrec = false; if (r.error) throw new Error(r.error); S.rdone = key; if (sub) sub.textContent = 'Ačiū! Jūsų 5 sekundės — filme 🎬'; })
+      .catch(function () { S.rrec = false; nativeBtn(true, key); if (sub) sub.textContent = 'Nepavyko išsiųsti — bandykite dar kartą.'; });
+  }
   function relayView() {
     var out = [h('p', { class: 'kicker' }, 'Estafetė 🎬')];
     if (S.rmsg) out.push(h('p', { class: 'err' }, S.rmsg));
-    if (!S.rstream) {
+    if (!S.rstream && !S.rnative) {
       out.push(h('h1', null, 'Jūsų 5 sekundės filme'));
       out.push(h('p', { class: 'mut' }, 'Prisijunkite — gausite atsitiktinį numerį. Kai ateis jūsų eilė, telefonas pats filmuos 5 sekundes.'));
       out.push(h('button', { class: 'btn big', onclick: relayJoin }, '📷 Prisijungti'));
       return out;
     }
     var wrap = h('div', { class: 'dwrap' }, h('div', { class: 'rbig', id: 'rbig' }, ''));
-    wrap.insertBefore(S.rvideo, wrap.firstChild);
+    if (S.rvideo) wrap.insertBefore(S.rvideo, wrap.firstChild); else wrap.style.minHeight = '42vh';
+    if (S.rnative) {
+      wrap.appendChild(h('input', { type: 'file', accept: 'video/*', capture: 'environment', id: 'rnatf', class: 'hid', onchange: nativeSend }));
+      wrap.appendChild(h('label', { id: 'rnat', for: 'rnatf', style: 'display:none;position:absolute;inset:0;z-index:5;align-items:center;justify-content:center;text-align:center;background:#C0392B;color:#fff;font:900 9vw/1.15 Oswald,Arial,sans-serif;padding:4vw' }, '🎥 JŪSŲ EILĖ! Spauskite — filmuokite 5 s'));
+    }
     var RC = ['#FFE34F', '#3DDC84', '#FF5CA8', '#35C8FF', '#FF8A3D'], ci = 0, di;
     for (di = 0; di < K.device.length; di++) ci = (ci + K.device.charCodeAt(di)) % RC.length;
     var rdy = h('div', { class: 'rready', id: 'rready', style: 'background:' + RC[ci] },
