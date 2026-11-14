@@ -148,11 +148,11 @@
     }
     K.mount(h('div', { class: 'screen light' },
       h('header', null, h('div', null, h('p', { class: 'kicker' }, (e.title || 'Kadras') + (ds ? ' · Eksperimentas' : pl ? ' · Lokacija' : ' · Šviesa')),
-        h('h1', null, ds ? (res ? 'Pirštais ar kojomis? 👀' : two ? 'O dabar — stambiau! Veidas per visą kadrą' : 'Eksperimentas: atstumas — pirmas kadras') : pl ? (res ? 'Bendras ir stambus planas' : two ? 'O dabar — stambus planas: tik veidas! 🔍' : 'Bendras planas: visas žmogus 🧍')
+        h('h1', null, ds ? (res ? 'Pirštais ar kojomis? 👀' : two ? 'O dabar — stambus planas! Veidas per visą kadrą 🔍' : 'Eksperimentas: bendras planas 🧍') : pl ? (res ? 'Bendras ir stambus planas' : two ? 'O dabar — stambus planas: tik veidas! 🔍' : 'Bendras planas: visas žmogus 🧍')
           : (res ? 'Ta pati vieta. Tas pats telefonas.' : two ? 'O dabar — nugara į langą! 🌑' : 'Nufotografuokite kaimyną veidu į langą ☀️')))),
       h('div', { class: 'body lbody' },
-        col(A, 'la', ds ? '1 · Pirmas kadras' : pl ? '1 · Bendras planas' : '☀️ Veidu į langą', ds ? 'kaip nufotografavo' : pl ? 'visas žmogus' : 'šviesa į veidą'),
-        (two || res) ? col(B, 'lb', ds ? '2 · Stambiau' : pl ? '2 · Stambus planas' : '🌑 Nugara į langą', ds ? 'zoom ar žingsnis?' : pl ? 'tik veidas' : 'šviesa už nugaros') : h('div', { class: 'lcol lb wait' }, h('div', { class: 'lhd' }, h('b', null, pl ? '2 · …' : '🌑 …'), h('span', null, 'antras kadras — po akimirkos'))),
+        col(A, 'la', ds ? '1 · Bendras planas' : pl ? '1 · Bendras planas' : '☀️ Veidu į langą', ds ? 'visas žmogus' : pl ? 'visas žmogus' : 'šviesa į veidą'),
+        (two || res) ? col(B, 'lb', ds ? '2 · Stambus planas' : pl ? '2 · Stambus planas' : '🌑 Nugara į langą', ds ? 'zoom ar žingsnis?' : pl ? 'tik veidas' : 'šviesa už nugaros') : h('div', { class: 'lcol lb wait' }, h('div', { class: 'lhd' }, h('b', null, pl ? '2 · …' : '🌑 …'), h('span', null, 'antras kadras — po akimirkos'))),
         !res && h('div', { class: 'join' }, qr(K.guestUrl()), h('p', { class: 'adr' }, adr())))));
     FIRST = true;
     setTimeout(function () { document.querySelectorAll('.lwall').forEach(lightLayout); }, 0);
