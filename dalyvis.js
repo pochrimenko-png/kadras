@@ -59,11 +59,13 @@
     if (S.prev) URL.revokeObjectURL(S.prev);
     S.file = f; S.prev = URL.createObjectURL(f); S.err = ''; render();
   }
+  var DAUG = K.q.has('daug'); // ссылка ведущего ?daug — много селфи с одного телефона (14.11)
   function send() {
     if (S.busy || !S.file) return;
     var vid = /^video\//.test(S.file.type || '') || K.isVideoTask(S.st.event) && !/^image\//.test(S.file.type || '');
     if (vid) return sendVideo();
     var path = K.event + '/' + S.st.event.round + '/' + K.uuid() + '.jpg';
+    if (DAUG) K.device = K.uuid(); // режим ведущего «?daug»: каждый кадр — как от нового телефона, прежние не заменяются
     S.busy = true; S.err = ''; render();
     Promise.all([K.shrink(S.file, 1600, 0.82), K.shrink(S.file, 480, 0.7)])
       .then(function (b) { return Promise.all([api.upload(path, b[0]), api.upload(K.thumb(path), b[1])]); })
@@ -71,7 +73,8 @@
       .then(function (r) {
         if (r.error) throw new Error(r.error);
         if (S.prev) URL.revokeObjectURL(S.prev);
-        S.file = null; S.prev = null; S.change = false; S.busy = false;
+        S.file = null; S.prev = null; S.change = DAUG; S.busy = false;
+        if (DAUG) S.cnt = (S.cnt || 0) + 1;
         return refresh(true);
       })
       .catch(fail);
@@ -102,7 +105,7 @@
       }).catch(function (e) { if (e.message === 'long') { S.busy = false; S.err = 'Per ilgas — ne daugiau 15 sekundžių.'; render(); } else fail(e); });
   }
   function shoot() {
-    var ev = S.st.event, out = [h('p', { class: 'kicker' }, 'Užduotis')], vt = K.isVideoTask(ev);
+    var ev = S.st.event, out = [h('p', { class: 'kicker' }, DAUG ? 'Daug kadrų · išsiųsta: ' + (S.cnt || 0) : 'Užduotis')], vt = K.isVideoTask(ev);
     if (ev.task) out.push(h('div', { class: 'task' }, ev.task.replace(/^VIDEO:\s*/i, '')));
     out.push(h('input', { type: 'file', accept: vt ? 'video/*' : 'image/*', capture: 'environment', id: 'cam', class: 'hid', onchange: onFile }));
     out.push(h('input', { type: 'file', accept: vt ? 'video/*' : 'image/*', id: 'gal', class: 'hid', onchange: onFile }));
@@ -113,7 +116,7 @@
     } else {
       out.push(h('label', { class: 'btn big', for: 'cam' }, vt ? '🎥 Filmuoti (5 s)' : '📷 Fotografuoti'));
       out.push(h('label', { class: 'btn ghost', for: 'gal' }, 'Pasirinkti iš galerijos'));
-      if (S.change) out.push(h('button', { class: 'btn ghost', onclick: function () { S.change = false; render(); } }, 'Palikti ankstesnį'));
+      if (S.change && !DAUG) out.push(h('button', { class: 'btn ghost', onclick: function () { S.change = false; render(); } }, 'Palikti ankstesnį'));
     }
     if (S.err) out.push(h('p', { class: 'err' }, S.err));
     return out;
