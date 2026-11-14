@@ -7,13 +7,14 @@
   try { S.pin = sessionStorage.getItem(PK) || ''; } catch (e) {}
 
   var L1 = 'ŠVIESA 1: nufotografuokite šalia sėdintį žmogų veidu į langą.', L2 = 'ŠVIESA 2: dabar — tas pats žmogus nugara į langą.';
+  var P1 = 'PLANAS 1: bendras planas — visas žmogus.', P2 = 'PLANAS 2: stambus planas — tik veidas.';
   // не перерисовывать пульт, пока палец на экране (иначе кнопка «не нажимается»)
   var TOUCH = 0; ['pointerdown', 'touchstart'].forEach(function (t) { document.addEventListener(t, function () { TOUCH = Date.now(); }, true); });
   function busyFinger() { return Date.now() - TOUCH < 1200; }
   var PHASES = [['wait', 'Пауза'], ['collect', 'Сбор кадров'], ['vote', 'Голосование'], ['results', 'Результаты'], ['reveal', 'Раскрыть авторов']];
   var PRESETS = [
     ['Пробный кадр', 'Bandomasis kadras: nufotografuokite bet ką šalia savęs ir siųskite.'],
-    ['Место и ракурс', 'Tas pats žmogus – trys kampai: iš viršaus, akių lygyje, iš apačios. Siųskite geriausią.'],
+    ['Ракурсы (Nebūk banalus)', 'Nebūk banalus — keisk kampą! Iš apačios, iš viršaus, pro kažką, labai arti. Siųskite geriausią.'],
     ['Момент', 'Nufotografuokite, kaip jūsų kaimynas nusijuokia. Prašyti nusijuokti – draudžiama.'],
     ['Общая сцена', 'Vienas įvykis, vienas dublis. Siųskite savo kadrą.'],
     ['Слепой тест №2', 'Jūsų geriausias šios dienos kadras.'],
@@ -129,6 +130,11 @@
         h('div', { class: 'line' },
           h('button', { class: K.isLight(e) && !K.isLight2(e) ? 'on' : '', style: 'font-size:20px;padding:16px 20px', onclick: function () { S.task = null; call('round', { task: L1 }); } }, '☀️ Свет 1: лицом к окну (новый раунд)'),
           h('button', { class: K.isLight2(e) ? 'on' : '', style: 'font-size:20px;padding:16px 20px', onclick: function () { S.task = null; call('task', { task: L2 }).then(function () { if (S.st && S.st.event.phase !== 'collect') call('phase', { phase: 'collect' }); }); } }, '🌑 Свет 2: спиной к окну'),
+          h('button', { style: 'font-size:20px;padding:16px 20px', onclick: function () { call('phase', { phase: 'results' }); } }, '📊 Результат: слева / справа')),
+        h('p', { style: 'margin-top:8px' }, h('b', null, 'Место — «Užduotis: du kadrai», так же в два шага:')),
+        h('div', { class: 'line' },
+          h('button', { class: K.isPlan(e) && !K.isLight2(e) ? 'on' : '', style: 'font-size:20px;padding:16px 20px', onclick: function () { S.task = null; call('round', { task: P1 }); } }, '🧍 План 1: общий (новый раунд)'),
+          h('button', { class: K.isPlan(e) && K.isLight2(e) ? 'on' : '', style: 'font-size:20px;padding:16px 20px', onclick: function () { S.task = null; call('task', { task: P2 }).then(function () { if (S.st && S.st.event.phase !== 'collect') call('phase', { phase: 'collect' }); }); } }, '🔍 План 2: крупный'),
           h('button', { style: 'font-size:20px;padding:16px 20px', onclick: function () { call('phase', { phase: 'results' }); } }, '📊 Результат: слева / справа')),
         h('p', { style: 'color:var(--mut);font-size:14px' }, 'Свет 1 — все снимают соседа лицом к окну. Свет 2 — тот же раунд, второй кадр спиной к окну (первый не заменяется). Результат — на экране слева светлые, справа тёмные, без голосования.')),
       h('div', { class: 'box' },
